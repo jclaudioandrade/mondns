@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <!-- Header -->
+  <div class="col-12">
+    <div class="card p-4">
+      <div class="d-flex align-items-center gap-3">
+        <i class="bi bi-shield-shaded text-primary" style="font-size:3rem"></i>
+        <div>
+          <h3 class="text-light mb-0">mondns</h3>
+          <p class="text-secondary mb-1">DNS DDoS Monitor</p>
+          <span class="badge bg-primary">v{{ app_version }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Objetivo e Autor -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-info-circle me-2 text-primary"></i>Objetivo</small>
+      </div>
+      <div class="card-body">
+        <p class="text-secondary">
+          Monitoramento em tempo real de ataques DDoS nos servidores DNS autoritativos,
+          integrado ao <strong class="text-light">BIND 9.11.36-RedHat</strong>.
+        </p>
+        <p class="text-secondary mb-0">
+          O sistema coleta métricas via agentes instalados nos slaves DNS, aplica
+          cinco algoritmos de detecção independentes e classifica o tráfego como
+          <span class="badge badge-normal">normal</span>,
+          <span class="badge badge-suspect">suspeito</span> ou
+          <span class="badge badge-attack">ataque</span>,
+          com score composto ponderado e alertas automáticos.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-person me-2 text-primary"></i>Autor</small>
+      </div>
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center"
+               style="width:48px;height:48px;font-size:1.4rem">
+            <i class="bi bi-person-fill text-white"></i>
+          </div>
+          <div>
+            <div class="text-light fw-semibold">João Claudio de Faria Andrade</div>
+            <a href="mailto:joao.andrade@sonda.com" class="text-secondary small text-decoration-none">
+              <i class="bi bi-envelope me-1"></i>joao.andrade@sonda.com
+            </a>
+          </div>
+        </div>
+        <div class="text-secondary small">
+          <i class="bi bi-building me-1"></i>SONDA IT Solutions<br>
+          <i class="bi bi-shield me-1"></i>Administração de Infraestrutura DNS
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tecnologias -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-cpu me-2 text-primary"></i>Tecnologias Utilizadas</small>
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% for tech in technologies %}
+          <div class="col-md-4 col-lg-3">
+            <div class="d-flex align-items-start gap-2 p-2 rounded" style="background:#0f1117">
+              <i class="bi bi-check-circle-fill text-success mt-1" style="font-size:.7rem;flex-shrink:0"></i>
+              <div>
+                <div class="text-light" style="font-size:.85rem">{{ tech.name }}</div>
+                <div class="text-secondary" style="font-size:.75rem">{{ tech.desc }}</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Changelog / Versionamento -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-clock-history me-2 text-primary"></i>Histórico de Versões</small>
+      </div>
+      <div class="card-body p-0">
+        {% for release in changelog %}
+        <div class="p-3 {% if not loop.last %}border-bottom{% endif %}" style="border-color:#1e2a3a !important">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge bg-primary">v{{ release.version }}</span>
+            <span class="text-secondary small">{{ release.date }}</span>
+            {% if loop.first %}<span class="badge bg-success">Atual</span>{% endif %}
+          </div>
+          <ul class="mb-0 ps-3">
+            {% for item in release.items %}
+            <li class="text-secondary small mb-1">{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Servidores monitorados -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-hdd-network me-2 text-primary"></i>Infraestrutura Monitorada</small>
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-6"><div class="p-2 rounded" style="background:#0f1117">
+            <code class="text-secondary small">dc1mtrns01.ativas.com.br</code>
+            <span class="badge bg-primary ms-2" style="font-size:.65rem">MASTER</span>
+            <div class="text-secondary small">192.0.2.213</div>
+          </div></div>
+          <div class="col-md-6"><div class="p-2 rounded" style="background:#0f1117">
+            <code class="text-secondary small">dc1slvns01.ativas.com.br</code>
+            <span class="badge bg-secondary ms-2" style="font-size:.65rem">SLAVE</span>
+            <div class="text-secondary small">192.168.10.24 / 201.62.240.197</div>
+          </div></div>
+          <div class="col-md-6"><div class="p-2 rounded" style="background:#0f1117">
+            <code class="text-secondary small">dc1slvns02.ativas.com.br</code>
+            <span class="badge bg-secondary ms-2" style="font-size:.65rem">SLAVE</span>
+            <div class="text-secondary small">192.168.10.25 / 201.62.240.199</div>
+          </div></div>
+          <div class="col-md-6"><div class="p-2 rounded" style="background:#0f1117">
+            <code class="text-secondary small">dc1slvns03.ativas.com.br</code>
+            <span class="badge bg-secondary ms-2" style="font-size:.65rem">SLAVE</span>
+            <div class="text-secondary small">192.168.10.26 / 177.190.128.8</div>
+          </div></div>
+          <div class="col-md-6"><div class="p-2 rounded" style="background:#0f1117">
+            <code class="text-secondary small">dc1slvns04.ativas.com.br</code>
+            <span class="badge bg-secondary ms-2" style="font-size:.65rem">SLAVE</span>
+            <div class="text-secondary small">192.168.10.27 / 177.190.128.9</div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

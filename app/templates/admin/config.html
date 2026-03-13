@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h5 class="mb-0 text-light"><i class="bi bi-gear me-2 text-warning"></i>Configurações do Sistema</h5>
+  <span class="badge bg-warning text-dark">Admin</span>
+</div>
+
+{% for group_name, items in config_groups.items() %}
+<div class="card mb-3">
+  <div class="card-header py-2 px-3 d-flex align-items-center justify-content-between">
+    <small class="fw-semibold text-warning">
+      {% if group_name == 'detection' %}<i class="bi bi-sliders me-2"></i>Detecção
+      {% elif group_name == 'notifications' %}<i class="bi bi-bell me-2"></i>Notificações
+      {% elif group_name == 'retention' %}<i class="bi bi-archive me-2"></i>Retenção
+      {% else %}<i class="bi bi-gear me-2"></i>Geral{% endif %}
+      {{ group_name.capitalize() }}
+    </small>
+    <button class="btn btn-xs btn-outline-secondary btn-sm py-0 px-2"
+            onclick="saveGroup('{{ group_name }}')">
+      <i class="bi bi-check2 me-1"></i>Salvar grupo
+    </button>
+  </div>
+  <div class="card-body">
+    <div class="row g-2">
+      {% for c in items %}
+      <div class="col-md-6">
+        <label class="form-label d-flex justify-content-between">
+          <span>{{ c.description }}</span>
+          <code class="text-secondary" style="font-size:.65rem">{{ c.config_key }}</code>
+        </label>
+        {% if c.config_key in ['smtp_password'] %}
+        <input type="password" class="form-control form-control-sm config-input"
+               data-key="{{ c.config_key }}" data-group="{{ group_name }}" value="{{ c.config_value }}">
+        {% elif c.config_key == 'notifications_enabled' %}
+        <select class="form-select form-select-sm config-input"
+                data-key="{{ c.config_key }}" data-group="{{ group_name }}">
+          <option value="true" {% if c.config_value == 'true' %}selected{% endif %}>Habilitado</option>
+          <option value="false" {% if c.config_value != 'true' %}selected{% endif %}>Desabilitado</option>
+        </select>
+        {% else %}
+        <input type="text" class="form-control form-control-sm config-input"
+               data-key="{{ c.config_key }}" data-group="{{ group_name }}" value="{{ c.config_value }}">
+        {% endif %}
+        {% if c.updated_at %}
+        <small class="text-secondary" style="font-size:.65rem">
+          Atualizado: {{ c.updated_at.strftime('%d/%m/%Y %H:%M') }}
+        </small>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function saveGroup(group) {
+  const inputs = document.querySelectorAll(`.config-input[data-group="${group}"]`);
+  let ok = 0, fail = 0;
+  for (const inp of inputs) {
+    const r = await fetch(`/api/v1/config/${inp.dataset.key}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ config_value: inp.value })
+    });
+    r.ok ? ok++ : fail++;
+  }
+  if (fail === 0) showToast(`${ok} configuração(ões) de "${group}" salvas!`);
+  else showToast(`${fail} erro(s) ao salvar.`, 'error');
+}
+</script>
+{% endblock %}

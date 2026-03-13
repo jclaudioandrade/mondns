@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h5 class="mb-0 text-light"><i class="bi bi-hdd-network me-2 text-warning"></i>Servidores DNS Monitorados</h5>
+  <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreate">
+    <i class="bi bi-plus-lg me-1"></i>Novo Servidor
+  </button>
+</div>
+
+<div class="alert alert-dark border border-info-subtle small mb-3">
+  <i class="bi bi-key me-2 text-info"></i>
+  A API Key é usada pelo <strong>mondns-agent</strong> instalado em cada servidor slave.
+  Use "Rotacionar Key" se a chave for comprometida.
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr><th>Hostname</th><th>IP Interno</th><th>IP Externo</th><th>Role</th>
+            <th>Status</th><th>Último Contato</th><th>API Key</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in servers %}
+        <tr id="srv-{{ s.id }}">
+          <td><strong class="text-light">{{ s.hostname }}</strong></td>
+          <td><code class="text-secondary">{{ s.ip_internal or '—' }}</code></td>
+          <td><code class="text-secondary">{{ s.ip_external or '—' }}</code></td>
+          <td><span class="badge {% if s.role == 'master' %}bg-primary{% else %}bg-secondary{% endif %}">{{ s.role }}</span></td>
+          <td><span class="badge {% if s.is_active %}bg-success{% else %}bg-danger{% endif %}">
+            {% if s.is_active %}ativo{% else %}inativo{% endif %}</span>
+          </td>
+          <td><small class="text-secondary">{{ s.last_seen.strftime('%d/%m %H:%M') if s.last_seen else '—' }}</small></td>
+          <td>
+            {% if s.api_key %}
+            <span class="badge bg-success" style="font-size:.65rem"><i class="bi bi-key me-1"></i>Configurada</span>
+            <button class="btn btn-xs btn-outline-warning btn-sm py-0 px-1 ms-1"
+                    onclick="rotateKey({{ s.id }}, '{{ s.hostname }}')"
+                    title="Rotacionar API Key">
+              <i class="bi bi-arrow-repeat"></i>
+            </button>
+            {% else %}
+            <span class="badge bg-danger" style="font-size:.65rem">Sem key</span>
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1"
+                    onclick="editServer({{ s.id }}, '{{ s.hostname }}', '{{ s.ip_internal or '' }}', '{{ s.ip_external or '' }}')">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                    onclick="deleteServer({{ s.id }}, '{{ s.hostname }}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-secondary py-4">Nenhum servidor cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal chave gerada -->
+<div class="modal fade" id="modalKey" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content" style="background:#161b27;border-color:#1e2a3a">
+      <div class="modal-header border-secondary">
+        <h6 class="modal-title text-light"><i class="bi bi-key me-2 text-warning"></i>Nova API Key</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-secondary small">Copie agora — não será exibida novamente.</p>
+        <div class="input-group">
+          <input type="text" id="newKeyValue" class="form-control form-control-sm" readonly>
+          <button class="btn btn-outline-secondary btn-sm" onclick="copyKey()">
+            <i class="bi bi-clipboard"></i>
+          </button>
+        </div>
+        <p class="text-secondary small mt-2">
+          Use no agente: <code>API_KEY=&lt;chave&gt;</code> em <code>/etc/mondns-agent/.env</code>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Criar Servidor -->
+<div class="modal fade" id="modalCreate" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:#161b27;border-color:#1e2a3a">
+      <div class="modal-header border-secondary">
+        <h6 class="modal-title text-light"><i class="bi bi-plus me-2"></i>Novo Servidor DNS</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label">Hostname *</label>
+          <input type="text" id="c_hostname" class="form-control" placeholder="dc1slvns01.ativas.com.br"></div>
+        <div class="mb-2"><label class="form-label">IP Interno</label>
+          <input type="text" id="c_ip_internal" class="form-control" placeholder="192.168.10.24"></div>
+        <div class="mb-2"><label class="form-label">IP Externo</label>
+          <input type="text" id="c_ip_external" class="form-control" placeholder="201.62.240.197"></div>
+        <div class="mb-2"><label class="form-label">Role</label>
+          <select id="c_role" class="form-select">
+            <option value="slave">Slave</option>
+            <option value="master">Master</option>
+          </select>
+        </div>
+        <div class="mb-2"><label class="form-label">Descrição</label>
+          <input type="text" id="c_desc" class="form-control"></div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="createServer()">Criar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar -->
+<div class="modal fade" id="modalEdit" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:#161b27;border-color:#1e2a3a">
+      <div class="modal-header border-secondary">
+        <h6 class="modal-title text-light"><i class="bi bi-pencil me-2"></i>Editar Servidor</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="e_id">
+        <div class="mb-2"><label class="form-label">Hostname</label>
+          <input type="text" id="e_hostname" class="form-control"></div>
+        <div class="mb-2"><label class="form-label">IP Interno</label>
+          <input type="text" id="e_ip_internal" class="form-control"></div>
+        <div class="mb-2"><label class="form-label">IP Externo</label>
+          <input type="text" id="e_ip_external" class="form-control"></div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveServer()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function createServer() {
+  const body = {
+    hostname: document.getElementById('c_hostname').value,
+    ip_internal: document.getElementById('c_ip_internal').value || null,
+    ip_external: document.getElementById('c_ip_external').value || null,
+    role: document.getElementById('c_role').value,
+    description: document.getElementById('c_desc').value || null,
+  };
+  const r = await fetch('/api/v1/servers', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  if (r.ok || r.status === 201) {
+    const d = await r.json();
+    bootstrap.Modal.getInstance(document.getElementById('modalCreate'))?.hide();
+    document.getElementById('newKeyValue').value = d.api_key;
+    new bootstrap.Modal(document.getElementById('modalKey')).show();
+    setTimeout(() => location.reload(), 5000);
+  } else {
+    const d = await r.json();
+    showToast(d.detail || 'Erro.', 'error');
+  }
+}
+
+async function rotateKey(id, hostname) {
+  if (!confirm(`Rotacionar API Key de "${hostname}"? O agente precisará ser atualizado.`)) return;
+  const r = await fetch(`/api/v1/servers/${id}/rotate-key`, {method:'POST'});
+  if (r.ok) {
+    const d = await r.json();
+    document.getElementById('newKeyValue').value = d.api_key;
+    new bootstrap.Modal(document.getElementById('modalKey')).show();
+  }
+}
+
+function copyKey() {
+  const inp = document.getElementById('newKeyValue');
+  navigator.clipboard.writeText(inp.value).then(() => showToast('Copiado!'));
+}
+
+function editServer(id, hostname, ip_int, ip_ext) {
+  document.getElementById('e_id').value = id;
+  document.getElementById('e_hostname').value = hostname;
+  document.getElementById('e_ip_internal').value = ip_int;
+  document.getElementById('e_ip_external').value = ip_ext;
+  new bootstrap.Modal(document.getElementById('modalEdit')).show();
+}
+
+async function saveServer() {
+  const id = document.getElementById('e_id').value;
+  const body = {
+    hostname: document.getElementById('e_hostname').value,
+    ip_internal: document.getElementById('e_ip_internal').value || null,
+    ip_external: document.getElementById('e_ip_external').value || null,
+  };
+  const r = await fetch(`/api/v1/servers/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  if (r.ok) { showToast('Servidor atualizado.'); setTimeout(() => location.reload(), 1000); }
+  else showToast('Erro.', 'error');
+}
+
+async function deleteServer(id, hostname) {
+  if (!confirm(`Confirma exclusão de "${hostname}"?`)) return;
+  const r = await fetch(`/api/v1/servers/${id}`, {method:'DELETE'});
+  if (r.ok || r.status === 204) {
+    document.getElementById(`srv-${id}`)?.remove();
+    showToast('Servidor removido.');
+  }
+}
+</script>
+{% endblock %}

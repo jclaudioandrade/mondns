@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ page_title | default('mondns') }} — mondns{% endblock %}</title>
+
+  <!-- Bootstrap 5.3 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bs-body-bg: #0f1117;
+      --sidebar-width: 240px;
+      --topbar-height: 56px;
+    }
+    body { background: #0f1117; color: #e2e8f0; font-size: .9rem; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: var(--sidebar-width); background: #161b27;
+      border-right: 1px solid #1e2a3a; z-index: 1030;
+      display: flex; flex-direction: column;
+      transition: width .25s;
+    }
+    #sidebar .brand {
+      padding: 1rem 1.2rem; border-bottom: 1px solid #1e2a3a;
+      font-weight: 700; font-size: 1.1rem; color: #60a5fa;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    #sidebar .brand small { font-size: .65rem; color: #64748b; display: block; }
+    .nav-section { padding: .5rem 1rem .25rem; font-size: .7rem;
+                   text-transform: uppercase; letter-spacing: .08em; color: #475569; }
+    #sidebar .nav-link {
+      color: #94a3b8; padding: .45rem 1.2rem; border-radius: 6px;
+      margin: 1px .5rem; display: flex; align-items: center; gap: .6rem;
+      transition: background .15s, color .15s;
+    }
+    #sidebar .nav-link:hover, #sidebar .nav-link.active {
+      background: #1e3a5f; color: #60a5fa;
+    }
+    #sidebar .nav-link .bi { font-size: 1rem; width: 1.2rem; }
+    .admin-links { border-top: 1px solid #1e2a3a; margin-top: auto; padding-bottom: .5rem; }
+    .admin-links .nav-section { color: #f59e0b; }
+    .admin-links .nav-link:hover, .admin-links .nav-link.active {
+      background: #3a2e0a; color: #fbbf24;
+    }
+
+    /* ── Main content ── */
+    #main-content {
+      margin-left: var(--sidebar-width);
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    .topbar {
+      height: var(--topbar-height); background: #161b27;
+      border-bottom: 1px solid #1e2a3a; padding: 0 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .page-body { padding: 1.5rem; flex: 1; }
+
+    /* ── Cards ── */
+    .card { background: #161b27; border: 1px solid #1e2a3a; border-radius: 10px; }
+    .card-header { background: #1a2235; border-bottom: 1px solid #1e2a3a; }
+
+    /* ── Severity badges ── */
+    .badge-normal   { background: #064e3b; color: #6ee7b7; }
+    .badge-suspect  { background: #78350f; color: #fcd34d; }
+    .badge-attack   { background: #7f1d1d; color: #fca5a5; }
+    .badge-low      { background: #065f46; color: #a7f3d0; }
+    .badge-medium   { background: #92400e; color: #fde68a; }
+    .badge-high     { background: #7c2d12; color: #fdba74; }
+    .badge-critical { background: #450a0a; color: #fca5a5; }
+    .badge-active   { background: #7f1d1d; color: #fca5a5; }
+    .badge-resolved { background: #064e3b; color: #6ee7b7; }
+
+    /* ── Server status dots ── */
+    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .dot-online  { background:#10b981; box-shadow: 0 0 6px #10b981; }
+    .dot-offline { background:#6b7280; }
+    .dot-attack  { background:#ef4444; box-shadow: 0 0 8px #ef4444;
+                   animation: pulse-red 1s ease-in-out infinite; }
+    @keyframes pulse-red {
+      0%,100% { box-shadow: 0 0 4px #ef4444; }
+      50%      { box-shadow: 0 0 14px #ef4444; }
+    }
+
+    /* ── Score bar ── */
+    .score-bar { height: 6px; border-radius: 3px; background: #1e2a3a; }
+    .score-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+
+    /* ── Tables ── */
+    .table { color: #cbd5e1; }
+    .table thead th { border-color: #1e2a3a; color: #64748b; font-weight: 600;
+                      font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+    .table tbody tr { border-color: #1e2a3a; }
+    .table tbody tr:hover { background: #1a2235; }
+    .table td, .table th { vertical-align: middle; }
+
+    /* ── Forms ── */
+    .form-control, .form-select {
+      background: #0f1117; border-color: #1e2a3a; color: #e2e8f0;
+    }
+    .form-control:focus, .form-select:focus {
+      background: #0f1117; border-color: #3b82f6; color: #e2e8f0;
+      box-shadow: 0 0 0 .2rem rgba(59,130,246,.25);
+    }
+    .form-label { color: #94a3b8; font-size: .82rem; }
+    .input-group-text { background: #1e2a3a; border-color: #1e2a3a; color: #64748b; }
+
+    /* ── Buttons ── */
+    .btn-primary   { background: #2563eb; border-color: #2563eb; }
+    .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+    .btn-danger    { background: #dc2626; border-color: #dc2626; }
+    .btn-outline-secondary { border-color: #334155; color: #94a3b8; }
+    .btn-outline-secondary:hover { background: #1e2a3a; color: #e2e8f0; border-color: #475569; }
+
+    /* ── Toast / Flash ── */
+    .toast-container { position: fixed; top: 70px; right: 16px; z-index: 9999; }
+
+    /* ── Pagination ── */
+    .page-link { background: #161b27; border-color: #1e2a3a; color: #60a5fa; }
+    .page-link:hover { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+    .page-item.active .page-link { background: #2563eb; border-color: #2563eb; }
+    .page-item.disabled .page-link { background: #0f1117; color: #475569; }
+
+    /* ── Spinner ── */
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator { display: inline-block; }
+
+    {% block extra_css %}{% endblock %}
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="brand">
+    <i class="bi bi-shield-shaded"></i>
+    <div>mondns <small>DNS DDoS Monitor</small></div>
+  </div>
+
+  <div class="mt-2">
+    <div class="nav-section">Monitoramento</div>
+    <a href="/dashboard" class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i> Dashboard
+    </a>
+    <a href="/attacks" class="nav-link {% if '/attacks' in request.url.path %}active{% endif %}">
+      <i class="bi bi-exclamation-triangle"></i> Ataques
+    </a>
+
+    <div class="nav-section mt-2">Sistema</div>
+    <a href="/about" class="nav-link {% if request.url.path == '/about' %}active{% endif %}">
+      <i class="bi bi-info-circle"></i> Sobre
+    </a>
+  </div>
+
+  {% if user and user.group == 'admin' %}
+  <div class="admin-links">
+    <div class="nav-section">Administração</div>
+    <a href="/admin/users" class="nav-link {% if '/admin/users' in request.url.path %}active{% endif %}">
+      <i class="bi bi-people"></i> Usuários
+    </a>
+    <a href="/admin/servers" class="nav-link {% if '/admin/servers' in request.url.path %}active{% endif %}">
+      <i class="bi bi-hdd-network"></i> Servidores DNS
+    </a>
+    <a href="/admin/thresholds" class="nav-link {% if '/admin/thresholds' in request.url.path %}active{% endif %}">
+      <i class="bi bi-sliders"></i> Thresholds
+    </a>
+    <a href="/admin/config" class="nav-link {% if '/admin/config' in request.url.path %}active{% endif %}">
+      <i class="bi bi-gear"></i> Configurações
+    </a>
+    <a href="/admin/notifications" class="nav-link {% if '/admin/notifications' in request.url.path %}active{% endif %}">
+      <i class="bi bi-bell"></i> Notificações
+    </a>
+    <a href="/admin/retention" class="nav-link {% if '/admin/retention' in request.url.path %}active{% endif %}">
+      <i class="bi bi-archive"></i> Retenção de Dados
+    </a>
+    <a href="/admin/audit" class="nav-link {% if '/admin/audit' in request.url.path %}active{% endif %}">
+      <i class="bi bi-journal-text"></i> Auditoria
+    </a>
+  </div>
+  {% endif %}
+</nav>
+
+<!-- ── Main content ────────────────────────────────────────── -->
+<div id="main-content">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-secondary">
+        <i class="bi bi-chevron-right"></i>
+        <strong class="text-light">{{ page_title | default('mondns') }}</strong>
+      </span>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      {% if user %}
+      <span class="text-secondary small">
+        <i class="bi bi-person-circle me-1"></i>
+        {{ user.full_name | default(user.username) }}
+        <span class="badge {% if user.group == 'admin' %}bg-warning text-dark{% else %}bg-secondary{% endif %} ms-1" style="font-size:.65rem">
+          {{ user.group }}
+        </span>
+      </span>
+      <a href="/logout" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-box-arrow-right"></i> Sair
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Page body -->
+  <div class="page-body">
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Helpers globais -->
+<script>
+  // Score → classe de cor
+  function scoreClass(s) {
+    if (s >= 70) return 'danger';
+    if (s >= 30) return 'warning';
+    return 'success';
+  }
+  function severityBadge(s) {
+    const map = {
+      normal:'badge-normal', suspect:'badge-suspect', attack:'badge-attack',
+      low:'badge-low', medium:'badge-medium', high:'badge-high', critical:'badge-critical',
+      active:'badge-active', resolved:'badge-resolved'
+    };
+    return `<span class="badge ${map[s]||'bg-secondary'}">${s}</span>`;
+  }
+  // Toast helper
+  function showToast(msg, type='success') {
+    const id = 'toast_' + Date.now();
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+    const col  = type === 'success' ? 'text-success' : 'text-danger';
+    document.getElementById('toastArea').insertAdjacentHTML('beforeend', `
+      <div id="${id}" class="toast align-items-center border-0 bg-dark" role="alert">
+        <div class="d-flex">
+          <div class="toast-body">
+            <i class="bi bi-${icon} ${col} me-2"></i>${msg}
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      </div>`);
+    new bootstrap.Toast(document.getElementById(id), {delay:3500}).show();
+  }
+</script>
+
+<div id="toastArea" class="toast-container"></div>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

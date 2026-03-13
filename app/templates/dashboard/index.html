@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- ── Server Status Cards ──────────────────────────────────── -->
+<div id="server-cards"
+     hx-get="/api/v1/dashboard/summary"
+     hx-trigger="load, every 10s"
+     hx-target="#server-status-inner"
+     hx-indicator="#loading-indicator">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h5 class="mb-0 text-light"><i class="bi bi-hdd-network me-2 text-primary"></i>Status dos Servidores DNS</h5>
+    <span id="loading-indicator" class="htmx-indicator spinner-border spinner-border-sm text-secondary"></span>
+  </div>
+
+  <div id="server-status-inner" class="row g-3 mb-4">
+    <!-- Preenchido via HTMX -->
+    {% for srv in servers %}
+    <div class="col-xl-3 col-lg-6">
+      <div class="card p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="dot dot-offline" id="dot-{{ srv.id }}"></span>
+          <span class="fw-semibold text-light small">{{ srv.hostname }}</span>
+          <span class="badge bg-secondary ms-auto" style="font-size:.65rem">{{ srv.role }}</span>
+        </div>
+        <div class="text-secondary small">{{ srv.ip_external or srv.ip_internal or '—' }}</div>
+        <div class="mt-2 d-flex justify-content-between">
+          <small class="text-secondary">QPS</small>
+          <small id="qps-{{ srv.id }}" class="text-light fw-bold">—</small>
+        </div>
+        <div class="score-bar mt-2">
+          <div class="score-fill bg-success" id="score-fill-{{ srv.id }}" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Resumo ──────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card p-3 text-center">
+      <div class="text-secondary small">Ataques Hoje</div>
+      <div class="fs-3 fw-bold text-danger mt-1" id="stat-attacks-today">—</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3 text-center">
+      <div class="text-secondary small">Ataques Ativos</div>
+      <div class="fs-3 fw-bold mt-1" id="stat-active-attacks" style="color:#f87171">—</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card p-3 text-center">
+      <div class="text-secondary small">Servidores Online</div>
+      <div class="fs-3 fw-bold text-success mt-1" id="stat-online">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gráfico QPS ─────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between py-2 px-3">
+        <span class="small fw-semibold"><i class="bi bi-graph-up me-2 text-primary"></i>Queries por Segundo — Última Hora</span>
+        <div class="d-flex gap-2">
+          {% for srv in servers %}
+          <span class="badge" style="background:#1e3a5f;color:#93c5fd;cursor:pointer"
+                onclick="toggleServer({{ srv.id }})" id="btn-{{ srv.id }}">
+            {{ srv.hostname.split('.')[0] }}
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-body" style="height:260px">
+        <canvas id="qpsChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Ataques Recentes ────────────────────────────────────── -->
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between py-2 px-3">
+    <span class="small fw-semibold"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Ataques Recentes</span>
+    <a href="/attacks" class="btn btn-sm btn-outline-secondary">Ver todos</a>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr>
+          <th>Servidor</th><th>Severidade</th><th>Score</th>
+          <th>Pico QPS</th><th>Início</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="recent-attacks-body">
+        <tr><td colspan="7" class="text-center text-secondary py-3">Carregando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const SERVER_IDS = [{% for srv in servers %}{{ srv.id }},{% endfor %}];
+const COLORS = ['#60a5fa','#34d399','#f59e0b','#f87171','#a78bfa','#fb923c'];
+const chartDatasets = {};
+let qpsChart;
+
+// Inicializar Chart.js
+(function initChart() {
+  const ctx = document.getElementById('qpsChart').getContext('2d');
+  qpsChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: 'index', intersect: false,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} qps` }
+        },
+      },
+      scales: {
+        x: { ticks: { color: '#475569', maxTicksLimit: 10 },
+             grid: { color: '#1e2a3a' } },
+        y: { ticks: { color: '#475569' }, grid: { color: '#1e2a3a' },
+             beginAtZero: true },
+      },
+    },
+  });
+
+  SERVER_IDS.forEach((id, i) => {
+    chartDatasets[id] = {
+      label: 'srv' + id, data: [], fill: false,
+      borderColor: COLORS[i % COLORS.length],
+      backgroundColor: COLORS[i % COLORS.length] + '22',
+      borderWidth: 2, pointRadius: 0, tension: 0.3,
+    };
+  });
+
+  loadChartData();
+  setInterval(loadChartData, 10000);
+})();
+
+async function loadChartData() {
+  for (const id of SERVER_IDS) {
+    try {
+      const r = await fetch(`/api/v1/dashboard/metrics/${id}?minutes=60`);
+      const d = await r.json();
+      chartDatasets[id].label = 'srv' + id;
+      chartDatasets[id].data = d.qps;
+      if (qpsChart.data.labels.length === 0) {
+        qpsChart.data.labels = d.labels;
+      }
+    } catch(e) {}
+  }
+  qpsChart.data.datasets = Object.values(chartDatasets).filter(ds => ds.visible !== false);
+  qpsChart.update('none');
+}
+
+function toggleServer(id) {
+  const ds = chartDatasets[id];
+  ds.visible = ds.visible !== false ? false : true;
+  loadChartData();
+}
+
+// Atualizar cards e stats a partir do summary
+async function loadSummary() {
+  try {
+    const r = await fetch('/api/v1/dashboard/summary');
+    const d = await r.json();
+
+    let online = 0;
+    d.servers.forEach(srv => {
+      const dot = document.getElementById('dot-' + srv.id);
+      const qpsEl = document.getElementById('qps-' + srv.id);
+      const fillEl = document.getElementById('score-fill-' + srv.id);
+      const score = srv.current_score || 0;
+
+      if (dot) {
+        dot.className = 'dot ' + (srv.attack_active ? 'dot-attack' : srv.online ? 'dot-online' : 'dot-offline');
+      }
+      if (qpsEl) qpsEl.textContent = (srv.current_qps || 0).toFixed(0);
+      if (fillEl) {
+        fillEl.style.width = Math.min(100, score) + '%';
+        fillEl.className = 'score-fill bg-' + (score >= 70 ? 'danger' : score >= 30 ? 'warning' : 'success');
+      }
+      if (srv.online) online++;
+    });
+
+    document.getElementById('stat-attacks-today').textContent = d.total_attacks_today;
+    document.getElementById('stat-active-attacks').textContent = d.active_attacks;
+    document.getElementById('stat-online').textContent = online + ' / ' + d.servers.length;
+  } catch(e) {}
+}
+
+// Ataques recentes
+async function loadRecentAttacks() {
+  try {
+    const r = await fetch('/api/v1/dashboard/attacks/recent?limit=8');
+    const attacks = await r.json();
+    const tbody = document.getElementById('recent-attacks-body');
+
+    if (!attacks.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">Nenhum ataque registrado.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = attacks.map(a => {
+      const sev = a.severity || 'unknown';
+      const sevMap = {low:'badge-low',medium:'badge-medium',high:'badge-high',critical:'badge-critical',suspect:'badge-suspect'};
+      const statMap = {active:'badge-active',resolved:'badge-resolved'};
+      const dt = new Date(a.started_at).toLocaleString('pt-BR');
+      return `<tr>
+        <td><small class="text-light">${a.hostname}</small></td>
+        <td><span class="badge ${sevMap[sev]||'bg-secondary'}">${sev}</span></td>
+        <td><span class="text-${a.score>=70?'danger':a.score>=30?'warning':'success'} fw-bold">${(a.score||0).toFixed(1)}</span></td>
+        <td>${(a.peak_qps||0).toFixed(0)}</td>
+        <td><small class="text-secondary">${dt}</small></td>
+        <td><span class="badge ${statMap[a.status]||'bg-secondary'}">${a.status}</span></td>
+        <td><a href="/attacks/${a.id}" class="btn btn-sm btn-outline-secondary py-0 px-2">
+          <i class="bi bi-eye"></i></a></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {}
+}
+
+loadSummary();
+loadRecentAttacks();
+setInterval(loadSummary, 10000);
+setInterval(loadRecentAttacks, 15000);
+</script>
+{% endblock %}

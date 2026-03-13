@@ -6,6 +6,47 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [0.2.0] — 2026-03-13
+
+### Adicionado
+- Backend completo FastAPI com modelos SQLAlchemy 2.0 (User, DnsServer, DnsMetric, AttackEvent, AttackDetail, SystemConfig, AuditLog)
+- Motor de detecção DDoS com 5 algoritmos independentes:
+  - **QPS Threshold**: volume de queries/segundo vs threshold configurado
+  - **NXDOMAIN Rate**: % de respostas NXDOMAIN (random subdomain attack)
+  - **Source Entropy**: concentração/dispersão das fontes (flood vs botnet)
+  - **Query Type Anomaly**: pico de ANY/TXT/RRSIG (amplificação)
+  - **Domain Entropy**: entropia Shannon dos subdomínios (geração aleatória)
+- Score composto ponderado (0–100) com classificação Normal/Suspeito/Ataque
+- Endpoint `/api/v1/collect` para recebimento de métricas dos agentes (autenticação X-API-Key)
+- Gerenciamento automático de AttackEvent (abertura, atualização, fechamento)
+- Dashboard web em tempo real (HTMX polling + Chart.js)
+- Autenticação por sessão Redis com HTTP-only cookie
+- Grupos de usuários: `admin` e `analyst` com permissões distintas
+- Painel Admin completo:
+  - Gerenciamento de Usuários (CRUD)
+  - Servidores DNS (registro + API Keys + rotação)
+  - Thresholds de Detecção (editáveis em tempo real)
+  - Configurações do Sistema (por grupo)
+  - Notificações (SMTP + Webhook)
+  - Log de Auditoria
+  - Retenção de Dados (remoção manual admin)
+- Histórico de ataques com timeline detalhada (QPS, score, NXDOMAIN, top IPs)
+- Sistema de notificações: e-mail SMTP e webhook HTTP genérico
+- Log de auditoria completo (banco + stdout prefixo `AUDIT:`)
+- Página Sobre com versão, autor, tecnologias e changelog
+- **mondns-agent**: agente Python puro (sem deps externas) para os slaves
+  - Lê query.log do BIND em tempo real (tail -F)
+  - Coleta stats de rede via /sys/class/net/
+  - Sem necessidade de root em operação normal
+- Script `deploy/install-agent.sh` para instalação nos slaves
+- `migrations/env.py` configurado para DATABASE_URL via variável de ambiente
+
+### Retenção de dados
+- Métricas normais: 1 ano (DnsMetric)
+- Dados de ataque: indefinidos (AttackEvent + AttackDetail) — remoção manual admin
+
+---
+
 ## [0.1.0] — 2026-03-13
 
 ### Adicionado

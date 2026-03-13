@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h5 class="mb-0 text-light"><i class="bi bi-bell me-2 text-warning"></i>Configurações de Notificação</h5>
+  <span class="badge bg-warning text-dark">Admin</span>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold text-warning"><i class="bi bi-envelope me-2"></i>E-mail (SMTP)</small>
+      </div>
+      <div class="card-body">
+        {% for c in configs %}
+        {% if c.config_key not in ['webhook_url', 'notifications_enabled'] %}
+        <div class="mb-3">
+          <label class="form-label">{{ c.description }}</label>
+          <input type="{{ 'password' if 'password' in c.config_key else 'text' }}"
+                 class="form-control form-control-sm notif-input"
+                 data-key="{{ c.config_key }}" value="{{ c.config_value }}"
+                 placeholder="{{ c.config_key }}">
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold text-warning"><i class="bi bi-broadcast me-2"></i>Webhook</small>
+      </div>
+      <div class="card-body">
+        {% for c in configs %}
+        {% if c.config_key in ['webhook_url', 'notifications_enabled'] %}
+        <div class="mb-3">
+          <label class="form-label">{{ c.description }}</label>
+          {% if c.config_key == 'notifications_enabled' %}
+          <select class="form-select form-select-sm notif-input" data-key="{{ c.config_key }}">
+            <option value="true" {% if c.config_value == 'true' %}selected{% endif %}>Habilitado</option>
+            <option value="false" {% if c.config_value != 'true' %}selected{% endif %}>Desabilitado</option>
+          </select>
+          {% else %}
+          <input type="text" class="form-control form-control-sm notif-input"
+                 data-key="{{ c.config_key }}" value="{{ c.config_value }}"
+                 placeholder="https://hooks.slack.com/...">
+          {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        <div class="p-3 mt-2" style="background:#0f1117;border-radius:8px">
+          <div class="small text-secondary mb-2">Payload do webhook (exemplo):</div>
+          <pre class="text-success" style="font-size:.7rem;margin:0">{
+  "event": "attack_detected",
+  "server": "dc1slvns01",
+  "severity": "high",
+  "score": 82.5,
+  "peak_qps": 12500
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-end mt-3 gap-2">
+  <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Cancelar
+  </button>
+  <button type="button" class="btn btn-primary btn-sm" onclick="saveNotifications()">
+    <i class="bi bi-check2 me-1"></i>Salvar Configurações
+  </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function saveNotifications() {
+  const inputs = document.querySelectorAll('.notif-input');
+  let ok = 0, fail = 0;
+  for (const inp of inputs) {
+    const r = await fetch(`/api/v1/config/${inp.dataset.key}`, {
+      method: 'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ config_value: inp.value })
+    });
+    r.ok ? ok++ : fail++;
+  }
+  if (fail === 0) showToast(`${ok} configuração(ões) salvas!`);
+  else showToast(`${fail} erro(s) ao salvar.`, 'error');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block content %}
+{% set sev_class = {'low':'badge-low','medium':'badge-medium','high':'badge-high','critical':'badge-critical','suspect':'badge-suspect'} %}
+{% set stat_class = {'active':'badge-active','resolved':'badge-resolved'} %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="d-flex align-items-center gap-2">
+    <a href="/attacks" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+    <h5 class="mb-0 text-light">Ataque #{{ attack.id }} — {{ hostname }}</h5>
+    <span class="badge {{ sev_class.get(attack.severity, 'bg-secondary') }}">{{ attack.severity }}</span>
+    <span class="badge {{ stat_class.get(attack.status, 'bg-secondary') }}">{{ attack.status }}</span>
+  </div>
+  {% if user.group == 'admin' %}
+  <button class="btn btn-sm btn-danger" onclick="deleteAttack({{ attack.id }})">
+    <i class="bi bi-trash me-1"></i>Remover
+  </button>
+  {% endif %}
+</div>
+
+<!-- Métricas resumo -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card p-3 text-center">
+      <div class="text-secondary small">Score Composto</div>
+      <div class="fs-2 fw-bold {% if attack.composite_score >= 70 %}text-danger{% elif attack.composite_score >= 30 %}text-warning{% else %}text-success{% endif %} mt-1">
+        {{ '%.1f'|format(attack.composite_score or 0) }}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 text-center">
+      <div class="text-secondary small">Pico QPS</div>
+      <div class="fs-2 fw-bold text-light mt-1">{{ '%.0f'|format(attack.peak_qps or 0) }}</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 text-center">
+      <div class="text-secondary small">NXDOMAIN Máx</div>
+      <div class="fs-2 fw-bold text-warning mt-1">{{ '%.1f'|format(attack.peak_nxdomain_rate or 0) }}%</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 text-center">
+      <div class="text-secondary small">Total Queries</div>
+      <div class="fs-2 fw-bold text-light mt-1">{{ '{:,}'.format(attack.total_queries or 0) }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="small fw-semibold mb-2 text-secondary">Informações</div>
+      <table class="table table-sm mb-0">
+        <tr><td class="text-secondary">Servidor</td><td>{{ hostname }}</td></tr>
+        <tr><td class="text-secondary">Início</td><td>{{ attack.started_at.strftime('%d/%m/%Y %H:%M:%S') }}</td></tr>
+        <tr><td class="text-secondary">Fim</td>
+          <td>{% if attack.ended_at %}{{ attack.ended_at.strftime('%d/%m/%Y %H:%M:%S') }}{% else %}<span class="text-danger">Em andamento</span>{% endif %}</td>
+        </tr>
+        <tr><td class="text-secondary">Algoritmos</td>
+          <td>{% if attack.triggered_algorithms %}{{ attack.triggered_algorithms | join(', ') }}{% else %}—{% endif %}</td>
+        </tr>
+        {% if attack.notes %}
+        <tr><td class="text-secondary">Observações</td><td>{{ attack.notes }}</td></tr>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="small fw-semibold mb-2 text-secondary">Scores por Algoritmo (Pico)</div>
+      {% if details %}
+      {% set last = details[-1] %}
+      {% for label, val in [
+          ('QPS', last.score_qps), ('NXDOMAIN', last.score_nxdomain),
+          ('Entropia Fontes', last.score_source_entropy),
+          ('Tipo de Query', last.score_query_type),
+          ('Entropia Domínio', last.score_domain_entropy)
+      ] %}
+      <div class="mb-2">
+        <div class="d-flex justify-content-between mb-1">
+          <small class="text-secondary">{{ label }}</small>
+          <small class="{% if val >= 70 %}text-danger{% elif val >= 30 %}text-warning{% else %}text-success{% endif %}">{{ '%.1f'|format(val or 0) }}</small>
+        </div>
+        <div class="score-bar">
+          <div class="score-fill {% if val >= 70 %}bg-danger{% elif val >= 30 %}bg-warning{% else %}bg-success{% endif %}"
+               style="width:{{ [val or 0, 100]|min }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="text-secondary small">Nenhum detalhe disponível.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Gráfico timeline -->
+{% if details %}
+<div class="card mb-4">
+  <div class="card-header py-2 px-3">
+    <small class="fw-semibold"><i class="bi bi-graph-up me-2 text-danger"></i>Timeline do Ataque</small>
+  </div>
+  <div class="card-body" style="height:280px">
+    <canvas id="attackChart"></canvas>
+  </div>
+</div>
+
+<!-- Top IPs atacantes -->
+{% set last_detail = details[-1] %}
+{% if last_detail and last_detail.top_attacker_ips %}
+<div class="card">
+  <div class="card-header py-2 px-3">
+    <small class="fw-semibold"><i class="bi bi-geo-alt me-2 text-danger"></i>Top IPs Atacantes (último segundo registrado)</small>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>IP</th><th>Queries</th><th>Participação</th></tr></thead>
+      <tbody>
+        {% set total_ip = last_detail.top_attacker_ips | sum(attribute='count') %}
+        {% for ip in last_detail.top_attacker_ips[:20] %}
+        <tr>
+          <td><code class="text-warning">{{ ip.ip }}</code></td>
+          <td>{{ '{:,}'.format(ip.count) }}</td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="score-bar flex-grow-1">
+                <div class="score-fill bg-danger"
+                     style="width:{{ ((ip.count / total_ip) * 100)|round(1) }}%"></div>
+              </div>
+              <small class="text-secondary">{{ ((ip.count / total_ip) * 100)|round(1) }}%</small>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if details %}
+<script>
+const labels  = [{% for d in details %}"{{ d.recorded_at.strftime('%H:%M:%S') }}",{% endfor %}];
+const qpsData = [{% for d in details %}{{ d.qps or 0 }},{% endfor %}];
+const scoreData = [{% for d in details %}{{ d.composite_score or 0 }},{% endfor %}];
+const nxdData = [{% for d in details %}{{ d.nxdomain_rate or 0 }},{% endfor %}];
+
+const ctx = document.getElementById('attackChart').getContext('2d');
+new Chart(ctx, {
+  data: {
+    labels,
+    datasets: [
+      { type:'line', label:'QPS', data:qpsData, yAxisID:'y',
+        borderColor:'#f87171', backgroundColor:'#f8717122', fill:true,
+        borderWidth:2, pointRadius:0, tension:.3 },
+      { type:'line', label:'Score', data:scoreData, yAxisID:'y2',
+        borderColor:'#fbbf24', backgroundColor:'transparent',
+        borderWidth:2, borderDash:[4,4], pointRadius:0, tension:.3 },
+      { type:'line', label:'NXDOMAIN%', data:nxdData, yAxisID:'y2',
+        borderColor:'#a78bfa', backgroundColor:'transparent',
+        borderWidth:1, pointRadius:0, tension:.3 },
+    ],
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    animation:{duration:0},
+    plugins:{
+      legend:{labels:{color:'#94a3b8',boxWidth:12}},
+      tooltip:{mode:'index',intersect:false},
+    },
+    scales:{
+      x:{ticks:{color:'#475569',maxTicksLimit:12},grid:{color:'#1e2a3a'}},
+      y:{position:'left',ticks:{color:'#f87171'},grid:{color:'#1e2a3a'},title:{display:true,text:'QPS',color:'#f87171'}},
+      y2:{position:'right',ticks:{color:'#fbbf24'},grid:{display:false},min:0,max:100,
+          title:{display:true,text:'Score / NXDOMAIN%',color:'#fbbf24'}},
+    },
+  },
+});
+</script>
+
+{% if user.group == 'admin' %}
+<script>
+async function deleteAttack(id) {
+  if (!confirm('Confirma a remoção permanente deste evento de ataque? Esta ação não pode ser desfeita.')) return;
+  const r = await fetch(`/api/v1/attacks/${id}`, { method: 'DELETE' });
+  if (r.ok || r.status === 204) {
+    showToast('Ataque removido com sucesso.');
+    setTimeout(() => window.location = '/attacks', 1200);
+  } else {
+    showToast('Erro ao remover ataque.', 'error');
+  }
+}
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}

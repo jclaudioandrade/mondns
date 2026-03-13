@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h5 class="mb-0 text-light"><i class="bi bi-people me-2 text-warning"></i>Gerenciar Usuários</h5>
+  <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalCreate">
+    <i class="bi bi-plus-lg me-1"></i>Novo Usuário
+  </button>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr><th>Usuário</th><th>Nome</th><th>E-mail</th><th>Grupo</th><th>Status</th><th>Último Login</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr id="row-{{ u.id }}">
+          <td><code class="text-info">{{ u.username }}</code></td>
+          <td>{{ u.full_name or '—' }}</td>
+          <td><small class="text-secondary">{{ u.email }}</small></td>
+          <td>
+            <span class="badge {% if u.group_name == 'admin' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+              {{ u.group_name }}
+            </span>
+          </td>
+          <td>
+            <span class="badge {% if u.is_active %}bg-success{% else %}bg-danger{% endif %}">
+              {% if u.is_active %}ativo{% else %}inativo{% endif %}
+            </span>
+          </td>
+          <td><small class="text-secondary">{{ u.last_login.strftime('%d/%m/%Y %H:%M') if u.last_login else '—' }}</small></td>
+          <td>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1"
+                    onclick="editUser({{ u.id }}, '{{ u.username }}', '{{ u.email }}', '{{ u.full_name or '' }}', '{{ u.group_name }}', {{ u.is_active|lower }})">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                    onclick="deleteUser({{ u.id }}, '{{ u.username }}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-secondary py-4">Nenhum usuário cadastrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Criar -->
+<div class="modal fade" id="modalCreate" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:#161b27;border-color:#1e2a3a">
+      <div class="modal-header border-secondary">
+        <h6 class="modal-title text-light"><i class="bi bi-person-plus me-2"></i>Novo Usuário</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Usuário *</label>
+          <input type="text" id="new_username" class="form-control" placeholder="usuário">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">E-mail *</label>
+          <input type="email" id="new_email" class="form-control" placeholder="email@sondaativas.com.br">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nome Completo</label>
+          <input type="text" id="new_fullname" class="form-control" placeholder="Nome">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Senha *</label>
+          <input type="password" id="new_password" class="form-control" placeholder="mínimo 8 caracteres">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Grupo</label>
+          <select id="new_group" class="form-select">
+            <option value="analyst">Analista</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="createUser()">Criar Usuário</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar -->
+<div class="modal fade" id="modalEdit" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:#161b27;border-color:#1e2a3a">
+      <div class="modal-header border-secondary">
+        <h6 class="modal-title text-light"><i class="bi bi-pencil me-2"></i>Editar Usuário: <span id="edit_username_label"></span></h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit_id">
+        <div class="mb-3">
+          <label class="form-label">E-mail</label>
+          <input type="email" id="edit_email" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nome Completo</label>
+          <input type="text" id="edit_fullname" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Grupo</label>
+          <select id="edit_group" class="form-select">
+            <option value="analyst">Analista</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Status</label>
+          <select id="edit_active" class="form-select">
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nova Senha (deixe em branco para manter)</label>
+          <input type="password" id="edit_password" class="form-control" placeholder="mínimo 8 caracteres">
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveEdit()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function createUser() {
+  const body = {
+    username: document.getElementById('new_username').value,
+    email: document.getElementById('new_email').value,
+    full_name: document.getElementById('new_fullname').value,
+    password: document.getElementById('new_password').value,
+    group_name: document.getElementById('new_group').value,
+  };
+  const r = await fetch('/api/v1/users', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  if (r.ok || r.status === 201) {
+    showToast('Usuário criado com sucesso!');
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    const d = await r.json();
+    showToast(d.detail || 'Erro ao criar usuário.', 'error');
+  }
+}
+
+function editUser(id, username, email, fullname, group, active) {
+  document.getElementById('edit_id').value = id;
+  document.getElementById('edit_username_label').textContent = username;
+  document.getElementById('edit_email').value = email;
+  document.getElementById('edit_fullname').value = fullname;
+  document.getElementById('edit_group').value = group;
+  document.getElementById('edit_active').value = active ? 'true' : 'false';
+  document.getElementById('edit_password').value = '';
+  new bootstrap.Modal(document.getElementById('modalEdit')).show();
+}
+
+async function saveEdit() {
+  const id = document.getElementById('edit_id').value;
+  const body = {
+    email: document.getElementById('edit_email').value,
+    full_name: document.getElementById('edit_fullname').value,
+    group_name: document.getElementById('edit_group').value,
+    is_active: document.getElementById('edit_active').value === 'true',
+  };
+  const pw = document.getElementById('edit_password').value;
+  if (pw) body.password = pw;
+
+  const r = await fetch(`/api/v1/users/${id}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  if (r.ok) {
+    showToast('Usuário atualizado.');
+    setTimeout(() => location.reload(), 1000);
+  } else {
+    const d = await r.json();
+    showToast(d.detail || 'Erro ao atualizar.', 'error');
+  }
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Confirma exclusão do usuário "${username}"?`)) return;
+  const r = await fetch(`/api/v1/users/${id}`, { method: 'DELETE' });
+  if (r.ok || r.status === 204) {
+    document.getElementById(`row-${id}`)?.remove();
+    showToast('Usuário removido.');
+  } else {
+    const d = await r.json();
+    showToast(d.detail || 'Erro ao remover.', 'error');
+  }
+}
+</script>
+{% endblock %}
