@@ -1,0 +1,132 @@
+---
+# ============================================================
+# mondns — podman-compose.yml
+# Orquestração local com Podman (NÃO Docker)
+# Uso: podman-compose up -d
+# ============================================================
+
+version: "3.9"
+
+networks:
+  mondns_net:
+    name: mondns_net
+    driver: bridge
+
+volumes:
+  mondns_postgres_data:
+    name: mondns_postgres_data
+  mondns_redis_data:
+    name: mondns_redis_data
+
+services:
+
+  # ----------------------------------------------------------
+  # Banco de Dados — PostgreSQL 15
+  # Porta dedicada: 5433 (não conflita com outras apps)
+  # ----------------------------------------------------------
+  postgres:
+    image: docker.io/library/postgres:15-alpine
+    container_name: mondns_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - mondns_postgres_data:/var/lib/postgresql/data
+    networks:
+      - mondns_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  # ----------------------------------------------------------
+  # Cache — Redis 7
+  # Porta dedicada: 6380 (não conflita com outras apps)
+  # ----------------------------------------------------------
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: mondns_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+    volumes:
+      - mondns_redis_data:/data
+    networks:
+      - mondns_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+
+  # ----------------------------------------------------------
+  # Aplicação — mondns
+  # Porta dedicada: 8002 (não conflita com outras apps)
+  # ----------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: mondns:latest
+    container_name: mondns_app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PORT: ${PORT:-8002}
+      APP_ENV: ${APP_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-RS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      DDOS_QUERY_THRESHOLD: ${DDOS_QUERY_THRESHOLD:-1000}
+      DDOS_WINDOW_SECONDS: ${DDOS_WINDOW_SECONDS:-60}
+      BIND_LOG_DIR: ${BIND_LOG_DIR:-/var/log/named}
+      BIND_QUERY_LOG: ${BIND_QUERY_LOG:-/var/log/named/query.log}
+      BIND_POLL_INTERVAL_SECONDS: ${BIND_POLL_INTERVAL_SECONDS:-5}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
+      RATE_LIMIT_AUTH_PER_MINUTE: ${RATE_LIMIT_AUTH_PER_MINUTE:-10}
+    ports:
+      - "127.0.0.1:${PORT:-8002}:${PORT:-8002}"
+    volumes:
+      - /var/log/named:/var/log/named:ro
+    networks:
+      - mondns_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${PORT:-8002}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
