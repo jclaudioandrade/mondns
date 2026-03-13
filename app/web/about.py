@@ -50,7 +50,7 @@ CHANGELOG = [
         "date": "2026-03-13",
         "items": [
             "Scaffold inicial: CLAUDE.md, .gitignore, .env.example",
-            "podman-compose.yml com PostgreSQL 15 (5433), Redis 7 (6380), app (8002)",
+            "podman-compose.yml com PostgreSQL 15 (5433), Redis 7 (6380), app (8003)",
             "Dockerfile multi-stage com usuário não-root (appuser UID 1001)",
             "Configuração Nginx para mondns.sondaativas.com.br",
             "Diretrizes de desenvolvimento: 12-Factor App, Security by Design",

@@ -79,7 +79,7 @@ services:
 
   # ----------------------------------------------------------
   # Aplicação — mondns
-  # Porta dedicada: 8002 (não conflita com outras apps)
+  # Porta dedicada: 8003 (não conflita com outras apps)
   # ----------------------------------------------------------
   app:
     build:
@@ -95,7 +95,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      PORT: ${PORT:-8002}
+      PORT: ${PORT:-8003}
       APP_ENV: ${APP_ENV:-production}
       SECRET_KEY: ${SECRET_KEY}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -114,13 +114,13 @@ services:
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
       RATE_LIMIT_AUTH_PER_MINUTE: ${RATE_LIMIT_AUTH_PER_MINUTE:-10}
     ports:
-      - "127.0.0.1:${PORT:-8002}:${PORT:-8002}"
+      - "127.0.0.1:${PORT:-8003}:${PORT:-8003}"
     volumes:
       - /var/log/named:/var/log/named:ro
     networks:
       - mondns_net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:${PORT:-8002}/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:${PORT:-8003}/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

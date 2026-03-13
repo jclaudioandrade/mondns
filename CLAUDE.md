@@ -22,7 +22,7 @@ Ambiente atual: VM VMware Linux compartilhado. Migração futura planejada para 
 | Container      | Podman + podman-compose (NÃO Docker)            |
 | Web server     | Nginx compartilhado (wildcard *.sondaativas.com.br, Sectigo, válido até 2027) |
 | DNS Integration| BIND 9.11.36-RedHat-9.11.36-5.el8_7.2          |
-| Porta da app   | 8002 (localhost only, atrás do Nginx)           |
+| Porta da app   | 8003 (localhost only, atrás do Nginx)           |
 | Subdomínio     | mondns.sondaativas.com.br                       |
 
 ---
@@ -58,7 +58,7 @@ Ambiente atual: VM VMware Linux compartilhado. Migração futura planejada para 
 ### VII. Port Binding
 - Porta definida via variável `PORT`.
 - Bind sempre em `0.0.0.0`.
-- Porta dedicada: **8002** (não conflita com outras apps do servidor).
+- Porta dedicada: **8003** (não conflita com outras apps do servidor).
 
 ### VIII. Concorrência
 - Escalado via processos (Gunicorn workers), não threads.
@@ -146,7 +146,7 @@ Ambiente atual: VM VMware Linux compartilhado. Migração futura planejada para 
 
 - **Banco de dados dedicado**: role `mondns_user` + database `mondns_db` — NUNCA compartilhado.
 - **Redis dedicado**: container isolado na porta **6380** — NUNCA compartilhado.
-- **Container/processo dedicado**: porta **8002** no localhost — NUNCA compartilhado.
+- **Container/processo dedicado**: porta **8003** no localhost — NUNCA compartilhado.
 - **Rede isolada**: rede Podman `mondns_net` — sem comunicação com outras aplicações.
 - **Volumes nomeados**: `mondns_postgres_data`, `mondns_redis_data`.
 

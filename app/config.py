@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_version: str = "0.2.0"
     app_name: str = "mondns"
-    port: int = 8002
+    port: int = 8003
     secret_key: str = "changeme"
     log_level: str = "INFO"
     web_concurrency: int = 4

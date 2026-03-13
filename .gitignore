@@ -132,3 +132,4 @@ Thumbs.db
 
 # --- Credenciais Git ---
 .git-credentials
+.claude/

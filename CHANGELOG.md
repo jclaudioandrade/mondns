@@ -54,7 +54,7 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Configuração de orquestração com `podman-compose.yml`
   - PostgreSQL 15 (porta dedicada 5433)
   - Redis 7 (porta dedicada 6380)
-  - Aplicação mondns (porta dedicada 8002)
+  - Aplicação mondns (porta dedicada 8003)
 - `Dockerfile` multi-stage (development / production) com usuário não-root
 - Configuração Nginx (`deploy/nginx.conf`) para `mondns.sondaativas.com.br`
   - Redirect HTTP → HTTPS

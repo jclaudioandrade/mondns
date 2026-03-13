@@ -67,13 +67,13 @@ COPY --chown=appuser:appgroup . .
 USER appuser
 
 # Porta via variável de ambiente
-ENV PORT=8002
+ENV PORT=8003
 EXPOSE $PORT
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
 
 # ------------------------------------------------------------
 # Stage 4: production — imagem final mínima e segura
@@ -102,7 +102,7 @@ COPY --chown=appuser:appgroup alembic.ini .
 USER appuser
 
 # Porta via variável de ambiente
-ENV PORT=8002
+ENV PORT=8003
 EXPOSE $PORT
 
 # Health check
@@ -112,7 +112,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8002", \
+     "--bind", "0.0.0.0:8003", \
      "--workers", "4", \
      "--timeout", "60", \
      "--graceful-timeout", "30", \
