@@ -70,6 +70,9 @@
   <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
     <i class="bi bi-arrow-clockwise me-1"></i>Cancelar
   </button>
+  <button type="button" class="btn btn-outline-warning btn-sm" id="btnTestEmail" onclick="testEmail()">
+    <i class="bi bi-send me-1"></i>Testar E-mail
+  </button>
   <button type="button" class="btn btn-primary btn-sm" onclick="saveNotifications()">
     <i class="bi bi-check2 me-1"></i>Salvar Configurações
   </button>
@@ -78,6 +81,26 @@
 
 {% block extra_js %}
 <script>
+async function testEmail() {
+  const btn = document.getElementById('btnTestEmail');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enviando...';
+  try {
+    const r = await fetch('/api/v1/config/test-email', { method: 'POST' });
+    const data = await r.json();
+    if (r.ok) {
+      showToast(`E-mail de teste enviado para: ${data.recipients.join(', ')}`);
+    } else {
+      showToast(data.detail || 'Erro ao enviar e-mail.', 'error');
+    }
+  } catch (e) {
+    showToast('Erro de comunicação com o servidor.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send me-1"></i>Testar E-mail';
+  }
+}
+
 async function saveNotifications() {
   const inputs = document.querySelectorAll('.notif-input');
   let ok = 0, fail = 0;

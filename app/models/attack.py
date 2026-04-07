@@ -58,7 +58,8 @@ class AttackDetail(Base):
     score_domain_entropy: Mapped[float | None] = mapped_column(Float, nullable=True)
     composite_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # Top atacantes e domínios neste segundo
+    # Top atacantes, domínios consultados, domínios NXDOMAIN e tipos de query
     top_attacker_ips: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     top_queried_domains: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    top_nxdomain_domains: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     query_types: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

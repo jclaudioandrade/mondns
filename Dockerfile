@@ -95,6 +95,7 @@ RUN chmod +x /entrypoint.sh /healthcheck.sh
 
 # Copiar código fonte (sem .env, sem secrets)
 COPY --chown=appuser:appgroup app/ ./app/
+COPY --chown=appuser:appgroup agent/ ./agent/
 COPY --chown=appuser:appgroup migrations/ ./migrations/
 COPY --chown=appuser:appgroup alembic.ini .
 

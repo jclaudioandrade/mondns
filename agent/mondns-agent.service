@@ -1,0 +1,35 @@
+[Unit]
+Description=mondns DNS DDoS Monitor Agent
+Documentation=https://mondns.sondaativas.com.br
+After=network.target named.service
+Requires=named.service
+
+[Service]
+Type=simple
+User=mondns-agent
+Group=mondns-agent
+
+# Carrega variáveis do arquivo de configuração
+EnvironmentFile=/etc/mondns-agent/config.env
+
+ExecStart=/usr/bin/python3 /opt/mondns-agent/agent.py
+
+# Reiniciar em caso de falha (mas não se sair com código 1 = config inválida)
+Restart=on-failure
+RestartSec=10
+
+# Logs via journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mondns-agent
+
+# Hardening — princípio do menor privilégio
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# O agente só precisa ler o socket do named (em /var/run/named/)
+# e não precisa escrever em lugar nenhum no disco
+
+[Install]
+WantedBy=multi-user.target

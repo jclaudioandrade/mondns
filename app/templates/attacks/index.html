@@ -58,7 +58,7 @@
           </td>
           <td>{{ '%.0f'|format(a.peak_qps or 0) }}</td>
           <td>{{ '%.1f'|format(a.peak_nxdomain_rate or 0) }}%</td>
-          <td><small class="text-secondary">{{ a.started_at.strftime('%d/%m/%Y %H:%M') }}</small></td>
+          <td><small class="text-secondary">{{ (a.started_at | as_brt).strftime('%d/%m/%Y %H:%M') }}</small></td>
           <td>
             {% if a.ended_at %}
               {% set delta = (a.ended_at - a.started_at).total_seconds()|int %}

@@ -5,12 +5,10 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Optional
 
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 from sqlalchemy.orm import Session
 
 from app.config import settings
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 SESSION_COOKIE = "mondns_session"
 SESSION_PREFIX = "session:"
@@ -19,11 +17,11 @@ SESSION_PREFIX = "session:"
 # ── Senhas ───────────────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    return _bcrypt.hashpw(plain.encode(), _bcrypt.gensalt(rounds=12)).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 # ── API Keys ──────────────────────────────────────────────────────────────────
@@ -68,6 +66,29 @@ def get_session(session_id: str) -> Optional[dict]:
 def delete_session(session_id: str) -> None:
     r = get_redis()
     r.delete(f"{SESSION_PREFIX}{session_id}")
+
+
+def get_active_sessions() -> list[dict]:
+    """Retorna lista de usuários com sessão ativa (deduplicado por user id)."""
+    r = get_redis()
+    seen: set = set()
+    result = []
+    for key in r.scan_iter(f"{SESSION_PREFIX}*"):
+        raw = r.get(key)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+            uid = data.get("id")
+            if uid not in seen:
+                seen.add(uid)
+                result.append({
+                    "username": data.get("username", ""),
+                    "full_name": data.get("full_name") or data.get("username", ""),
+                })
+        except Exception:
+            pass
+    return result
 
 
 # ── Autenticação Web ──────────────────────────────────────────────────────────

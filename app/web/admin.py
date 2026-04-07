@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.core.templating import templates  # noqa: F401
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,6 @@ from app.models.audit import AuditLog
 from app.models.attack import AttackEvent
 
 router = APIRouter(prefix="/admin")
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _require_admin(request: Request):
@@ -30,7 +29,7 @@ def admin_users(request: Request, db: Session = Depends(get_db)):
     user, redir = _require_admin(request)
     if redir:
         return redir
-    users = db.query(User).order_by(User.username).all()
+    users = db.query(User).filter(User.username != user.get("username")).order_by(User.username).all()
     return templates.TemplateResponse("admin/users.html", {
         "request": request, "user": user, "users": users, "page_title": "Gerenciar Usuários",
     })
@@ -127,6 +126,31 @@ def admin_retention(
         "pages": max(1, (total + per_page - 1) // per_page),
         "page_title": "Retenção de Dados",
     })
+
+
+@router.get("/active-sessions-badge", response_class=HTMLResponse)
+def active_sessions_badge(request: Request):
+    import html as _html
+    from app.core.security import get_active_sessions
+    user, redir = _require_admin(request)
+    base = (
+        '<span id="active-users-badge"'
+        ' hx-get="/admin/active-sessions-badge"'
+        ' hx-trigger="every 30s" hx-swap="outerHTML">'
+    )
+    if not redir:
+        sessions = get_active_sessions()
+        if sessions:
+            names = _html.escape(", ".join(s["full_name"] for s in sessions))
+            base += (
+                f'<span class="badge rounded-pill bg-success ms-1"'
+                f' data-bs-toggle="tooltip"'
+                f' data-bs-title="{names}"'
+                f' data-bs-placement="right"'
+                f' style="font-size:.7rem">{len(sessions)}</span>'
+            )
+    base += "</span>"
+    return HTMLResponse(base)
 
 
 @router.get("/notifications", response_class=HTMLResponse)

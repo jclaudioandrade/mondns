@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.core.templating import templates  # noqa: F401
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -9,7 +9,6 @@ from app.models.server import DnsServer
 from app.config import settings
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _require_user(request: Request):

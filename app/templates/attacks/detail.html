@@ -52,16 +52,22 @@
     <div class="card p-3">
       <div class="small fw-semibold mb-2 text-secondary">Informações</div>
       <table class="table table-sm mb-0">
-        <tr><td class="text-secondary">Servidor</td><td>{{ hostname }}</td></tr>
-        <tr><td class="text-secondary">Início</td><td>{{ attack.started_at.strftime('%d/%m/%Y %H:%M:%S') }}</td></tr>
+        <tr><td class="text-secondary">Servidor</td><td class="text-light">{{ hostname }}</td></tr>
+        <tr><td class="text-secondary">Início</td><td class="text-light">{{ (attack.started_at | as_brt).strftime('%d/%m/%Y %H:%M:%S') }}</td></tr>
         <tr><td class="text-secondary">Fim</td>
-          <td>{% if attack.ended_at %}{{ attack.ended_at.strftime('%d/%m/%Y %H:%M:%S') }}{% else %}<span class="text-danger">Em andamento</span>{% endif %}</td>
+          <td class="text-light">{% if attack.ended_at %}{{ (attack.ended_at | as_brt).strftime('%d/%m/%Y %H:%M:%S') }}{% else %}<span class="text-danger">Em andamento</span>{% endif %}</td>
         </tr>
         <tr><td class="text-secondary">Algoritmos</td>
-          <td>{% if attack.triggered_algorithms %}{{ attack.triggered_algorithms | join(', ') }}{% else %}—{% endif %}</td>
+          <td>
+            {% if attack.triggered_algorithms %}
+              {% for alg in attack.triggered_algorithms %}
+                <span class="badge bg-warning text-dark me-1">{{ alg }}</span>
+              {% endfor %}
+            {% else %}<span class="text-light">—</span>{% endif %}
+          </td>
         </tr>
         {% if attack.notes %}
-        <tr><td class="text-secondary">Observações</td><td>{{ attack.notes }}</td></tr>
+        <tr><td class="text-secondary">Observações</td><td class="text-light">{{ attack.notes }}</td></tr>
         {% endif %}
       </table>
     </div>
@@ -98,8 +104,18 @@
 <!-- Gráfico timeline -->
 {% if details %}
 <div class="card mb-4">
-  <div class="card-header py-2 px-3">
+  <div class="card-header d-flex align-items-center justify-content-between py-2 px-3">
     <small class="fw-semibold"><i class="bi bi-graph-up me-2 text-danger"></i>Timeline do Ataque</small>
+    <div class="d-flex flex-wrap gap-1" id="chart-toggles">
+      <button class="btn btn-sm chart-toggle active" data-idx="0" style="font-size:.7rem;padding:1px 8px;border:1px solid #f87171;color:#f87171;background:transparent">QPS</button>
+      <button class="btn btn-sm chart-toggle active" data-idx="1" style="font-size:.7rem;padding:1px 8px;border:1px solid #fbbf24;color:#fbbf24;background:transparent">Score</button>
+      <button class="btn btn-sm chart-toggle active" data-idx="2" style="font-size:.7rem;padding:1px 8px;border:1px solid #a78bfa;color:#a78bfa;background:transparent">NXDOMAIN%</button>
+      <button class="btn btn-sm chart-toggle" data-idx="3" style="font-size:.7rem;padding:1px 8px;border:1px solid #34d399;color:#34d399;background:transparent;opacity:.4">QPS Score</button>
+      <button class="btn btn-sm chart-toggle" data-idx="4" style="font-size:.7rem;padding:1px 8px;border:1px solid #f472b6;color:#f472b6;background:transparent;opacity:.4">NX Score</button>
+      <button class="btn btn-sm chart-toggle" data-idx="5" style="font-size:.7rem;padding:1px 8px;border:1px solid #fb923c;color:#fb923c;background:transparent;opacity:.4">Entropia Src</button>
+      <button class="btn btn-sm chart-toggle" data-idx="6" style="font-size:.7rem;padding:1px 8px;border:1px solid #38bdf8;color:#38bdf8;background:transparent;opacity:.4">Tipo Query</button>
+      <button class="btn btn-sm chart-toggle" data-idx="7" style="font-size:.7rem;padding:1px 8px;border:1px solid #e879f9;color:#e879f9;background:transparent;opacity:.4">Entropia Dom</button>
+    </div>
   </div>
   <div class="card-body" style="height:280px">
     <canvas id="attackChart"></canvas>
@@ -109,9 +125,9 @@
 <!-- Top IPs atacantes -->
 {% set last_detail = details[-1] %}
 {% if last_detail and last_detail.top_attacker_ips %}
-<div class="card">
+<div class="card mb-3">
   <div class="card-header py-2 px-3">
-    <small class="fw-semibold"><i class="bi bi-geo-alt me-2 text-danger"></i>Top IPs Atacantes (último segundo registrado)</small>
+    <small class="fw-semibold"><i class="bi bi-geo-alt me-2 text-danger"></i>Top IPs Atacantes (último intervalo registrado)</small>
   </div>
   <div class="card-body p-0">
     <table class="table table-sm mb-0">
@@ -138,47 +154,193 @@
   </div>
 </div>
 {% endif %}
+
+<div class="row g-3">
+  <!-- Top Domínios NXDOMAIN -->
+  {% if last_detail and last_detail.top_nxdomain_domains %}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-x-circle me-2 text-danger"></i>Top Domínios NXDOMAIN</small>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Domínio</th><th>Queries</th><th>Participação</th></tr></thead>
+          <tbody>
+            {% set has_count_nx = last_detail.top_nxdomain_domains and last_detail.top_nxdomain_domains[0] is mapping and last_detail.top_nxdomain_domains[0].count is defined %}
+            {% set total_nx = last_detail.top_nxdomain_domains | sum(attribute='count') if has_count_nx else 0 %}
+            {% for d in last_detail.top_nxdomain_domains[:20] %}
+            {% set name = d.domain if d is mapping else d %}
+            {% set cnt  = d.count  if (d is mapping and d.count is defined) else 0 %}
+            <tr>
+              <td class="text-secondary">{{ loop.index }}</td>
+              <td><code class="text-danger">{{ name }}</code></td>
+              <td>{{ '{:,}'.format(cnt) if cnt else '—' }}</td>
+              <td>
+                {% if total_nx > 0 %}
+                <div class="d-flex align-items-center gap-2">
+                  <div class="score-bar flex-grow-1">
+                    <div class="score-fill bg-danger" style="width:{{ ((cnt / total_nx) * 100)|round(1) }}%"></div>
+                  </div>
+                  <small class="text-secondary">{{ ((cnt / total_nx) * 100)|round(1) }}%</small>
+                </div>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Top Domínios Consultados -->
+  {% if last_detail and last_detail.top_queried_domains %}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-globe me-2 text-info"></i>Top Domínios Consultados</small>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Domínio</th><th>Queries</th><th>Participação</th></tr></thead>
+          <tbody>
+            {% set has_count = last_detail.top_queried_domains and last_detail.top_queried_domains[0] is mapping and last_detail.top_queried_domains[0].count is defined %}
+            {% set total_dom = last_detail.top_queried_domains | sum(attribute='count') if has_count else 0 %}
+            {% for d in last_detail.top_queried_domains[:20] %}
+            {% set name = d.domain if d is mapping else d %}
+            {% set cnt  = d.count  if (d is mapping and d.count is defined) else 0 %}
+            <tr>
+              <td class="text-secondary">{{ loop.index }}</td>
+              <td><code class="text-info">{{ name }}</code></td>
+              <td>{{ '{:,}'.format(cnt) if cnt else '—' }}</td>
+              <td>
+                {% if total_dom > 0 %}
+                <div class="d-flex align-items-center gap-2">
+                  <div class="score-bar flex-grow-1">
+                    <div class="score-fill bg-info" style="width:{{ ((cnt / total_dom) * 100)|round(1) }}%"></div>
+                  </div>
+                  <small class="text-secondary">{{ ((cnt / total_dom) * 100)|round(1) }}%</small>
+                </div>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tipos de Query -->
+  {% if last_detail and last_detail.query_types %}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header py-2 px-3">
+        <small class="fw-semibold"><i class="bi bi-question-circle me-2 text-purple"></i>Tipos de Query</small>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Tipo</th><th>Count</th><th>Participação</th></tr></thead>
+          <tbody>
+            {% set total_qt = last_detail.query_types.values() | sum %}
+            {% for qtype, count in last_detail.query_types.items() | sort(attribute='1', reverse=True) %}
+            <tr>
+              <td><span class="badge bg-secondary font-monospace">{{ qtype }}</span></td>
+              <td>{{ '{:,}'.format(count) }}</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="score-bar flex-grow-1">
+                    <div class="score-fill bg-info"
+                         style="width:{{ ((count / total_qt) * 100)|round(1) }}%"></div>
+                  </div>
+                  <small class="text-secondary">{{ ((count / total_qt) * 100)|round(1) }}%</small>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
 {% endif %}
 {% endblock %}
 
 {% block extra_js %}
 {% if details %}
 <script>
-const labels  = [{% for d in details %}"{{ d.recorded_at.strftime('%H:%M:%S') }}",{% endfor %}];
-const qpsData = [{% for d in details %}{{ d.qps or 0 }},{% endfor %}];
-const scoreData = [{% for d in details %}{{ d.composite_score or 0 }},{% endfor %}];
-const nxdData = [{% for d in details %}{{ d.nxdomain_rate or 0 }},{% endfor %}];
+const labels       = [{% for d in details %}"{{ (d.recorded_at | as_brt).strftime('%H:%M:%S') }}",{% endfor %}];
+const qpsData      = [{% for d in details %}{{ d.qps or 0 }},{% endfor %}];
+const scoreData    = [{% for d in details %}{{ d.composite_score or 0 }},{% endfor %}];
+const nxdData      = [{% for d in details %}{{ d.nxdomain_rate or 0 }},{% endfor %}];
+const sQpsData     = [{% for d in details %}{{ d.score_qps or 0 }},{% endfor %}];
+const sNxdData     = [{% for d in details %}{{ d.score_nxdomain or 0 }},{% endfor %}];
+const sSrcData     = [{% for d in details %}{{ d.score_source_entropy or 0 }},{% endfor %}];
+const sQtypeData   = [{% for d in details %}{{ d.score_query_type or 0 }},{% endfor %}];
+const sDomData     = [{% for d in details %}{{ d.score_domain_entropy or 0 }},{% endfor %}];
+
+const datasets = [
+  { type:'line', label:'QPS',           data:qpsData,    yAxisID:'y',
+    borderColor:'#f87171', backgroundColor:'#f8717122', fill:true,
+    borderWidth:2, pointRadius:0, tension:.3 },
+  { type:'line', label:'Score',         data:scoreData,  yAxisID:'y2',
+    borderColor:'#fbbf24', backgroundColor:'transparent',
+    borderWidth:2, borderDash:[4,4], pointRadius:0, tension:.3 },
+  { type:'line', label:'NXDOMAIN%',     data:nxdData,    yAxisID:'y2',
+    borderColor:'#a78bfa', backgroundColor:'transparent',
+    borderWidth:1, pointRadius:0, tension:.3 },
+  { type:'line', label:'QPS Score',     data:sQpsData,   yAxisID:'y2',
+    borderColor:'#34d399', backgroundColor:'transparent',
+    borderWidth:1, borderDash:[2,3], pointRadius:0, tension:.3, hidden:true },
+  { type:'line', label:'NX Score',      data:sNxdData,   yAxisID:'y2',
+    borderColor:'#f472b6', backgroundColor:'transparent',
+    borderWidth:1, borderDash:[2,3], pointRadius:0, tension:.3, hidden:true },
+  { type:'line', label:'Entropia Src',  data:sSrcData,   yAxisID:'y2',
+    borderColor:'#fb923c', backgroundColor:'transparent',
+    borderWidth:1, borderDash:[2,3], pointRadius:0, tension:.3, hidden:true },
+  { type:'line', label:'Tipo Query',    data:sQtypeData, yAxisID:'y2',
+    borderColor:'#38bdf8', backgroundColor:'transparent',
+    borderWidth:1, borderDash:[2,3], pointRadius:0, tension:.3, hidden:true },
+  { type:'line', label:'Entropia Dom',  data:sDomData,   yAxisID:'y2',
+    borderColor:'#e879f9', backgroundColor:'transparent',
+    borderWidth:1, borderDash:[2,3], pointRadius:0, tension:.3, hidden:true },
+];
 
 const ctx = document.getElementById('attackChart').getContext('2d');
-new Chart(ctx, {
-  data: {
-    labels,
-    datasets: [
-      { type:'line', label:'QPS', data:qpsData, yAxisID:'y',
-        borderColor:'#f87171', backgroundColor:'#f8717122', fill:true,
-        borderWidth:2, pointRadius:0, tension:.3 },
-      { type:'line', label:'Score', data:scoreData, yAxisID:'y2',
-        borderColor:'#fbbf24', backgroundColor:'transparent',
-        borderWidth:2, borderDash:[4,4], pointRadius:0, tension:.3 },
-      { type:'line', label:'NXDOMAIN%', data:nxdData, yAxisID:'y2',
-        borderColor:'#a78bfa', backgroundColor:'transparent',
-        borderWidth:1, pointRadius:0, tension:.3 },
-    ],
-  },
+const attackChart = new Chart(ctx, {
+  data: { labels, datasets },
   options: {
     responsive:true, maintainAspectRatio:false,
     animation:{duration:0},
     plugins:{
-      legend:{labels:{color:'#94a3b8',boxWidth:12}},
-      tooltip:{mode:'index',intersect:false},
+      legend:{display:false},
+      tooltip:{mode:'index', intersect:false,
+        filter: item => !attackChart.data.datasets[item.datasetIndex].hidden},
     },
     scales:{
       x:{ticks:{color:'#475569',maxTicksLimit:12},grid:{color:'#1e2a3a'}},
       y:{position:'left',ticks:{color:'#f87171'},grid:{color:'#1e2a3a'},title:{display:true,text:'QPS',color:'#f87171'}},
       y2:{position:'right',ticks:{color:'#fbbf24'},grid:{display:false},min:0,max:100,
-          title:{display:true,text:'Score / NXDOMAIN%',color:'#fbbf24'}},
+          title:{display:true,text:'Score / %',color:'#fbbf24'}},
     },
   },
+});
+
+document.querySelectorAll('.chart-toggle').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const idx = parseInt(this.dataset.idx);
+    const ds = attackChart.data.datasets[idx];
+    ds.hidden = !ds.hidden;
+    this.style.opacity = ds.hidden ? '.45' : '1';
+    this.classList.toggle('active', !ds.hidden);
+    attackChart.update();
+  });
 });
 </script>
 

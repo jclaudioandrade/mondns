@@ -17,6 +17,9 @@
   <style>
     :root {
       --bs-body-bg: #0f1117;
+      --bs-body-color: #e2e8f0;
+      --bs-table-color: #cbd5e1;
+      --bs-table-bg: transparent;
       --sidebar-width: 240px;
       --topbar-height: 56px;
     }
@@ -135,6 +138,12 @@
     .htmx-indicator { display: none; }
     .htmx-request .htmx-indicator { display: inline-block; }
 
+    /* ── Bootstrap tooltip — fix dark theme (--bs-tooltip-color herda --bs-body-bg) ── */
+    .tooltip {
+      --bs-tooltip-color: #f1f5f9;
+      --bs-tooltip-bg: #334155;
+    }
+
     {% block extra_css %}{% endblock %}
   </style>
 </head>
@@ -167,6 +176,10 @@
     <div class="nav-section">Administração</div>
     <a href="/admin/users" class="nav-link {% if '/admin/users' in request.url.path %}active{% endif %}">
       <i class="bi bi-people"></i> Usuários
+      <span id="active-users-badge"
+            hx-get="/admin/active-sessions-badge"
+            hx-trigger="load, every 30s"
+            hx-swap="outerHTML"></span>
     </a>
     <a href="/admin/servers" class="nav-link {% if '/admin/servers' in request.url.path %}active{% endif %}">
       <i class="bi bi-hdd-network"></i> Servidores DNS
@@ -177,13 +190,7 @@
     <a href="/admin/config" class="nav-link {% if '/admin/config' in request.url.path %}active{% endif %}">
       <i class="bi bi-gear"></i> Configurações
     </a>
-    <a href="/admin/notifications" class="nav-link {% if '/admin/notifications' in request.url.path %}active{% endif %}">
-      <i class="bi bi-bell"></i> Notificações
-    </a>
-    <a href="/admin/retention" class="nav-link {% if '/admin/retention' in request.url.path %}active{% endif %}">
-      <i class="bi bi-archive"></i> Retenção de Dados
-    </a>
-    <a href="/admin/audit" class="nav-link {% if '/admin/audit' in request.url.path %}active{% endif %}">
+<a href="/admin/audit" class="nav-link {% if '/admin/audit' in request.url.path %}active{% endif %}">
       <i class="bi bi-journal-text"></i> Auditoria
     </a>
   </div>
@@ -263,5 +270,12 @@
 <div id="toastArea" class="toast-container"></div>
 
 {% block extra_js %}{% endblock %}
+<script>
+  document.body.addEventListener('htmx:afterSettle', function() {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+      bootstrap.Tooltip.getOrCreateInstance(el);
+    });
+  });
+</script>
 </body>
 </html>

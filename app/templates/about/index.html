@@ -103,7 +103,7 @@
             {% if loop.first %}<span class="badge bg-success">Atual</span>{% endif %}
           </div>
           <ul class="mb-0 ps-3">
-            {% for item in release.items %}
+            {% for item in release.changes %}
             <li class="text-secondary small mb-1">{{ item }}</li>
             {% endfor %}
           </ul>

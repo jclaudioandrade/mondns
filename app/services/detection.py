@@ -21,6 +21,8 @@ class DetectionInput:
     query_types: dict                   # {"A": N, "ANY": N, ...}
     top_source_ips: list[dict]          # [{"ip": "...", "count": N}]
     top_queried_domains: list[str]      # lista de domínios consultados
+    query_count: int = 0               # total de queries na janela
+    discard_rate: float = 0.0          # % de frames descartados (AUTH/RESOLVER) sobre total
 
 
 @dataclass
@@ -30,6 +32,7 @@ class DetectionResult:
     score_source_entropy: float = 0.0
     score_query_type: float = 0.0
     score_domain_entropy: float = 0.0
+    score_discard_rate: float = 0.0
     composite_score: float = 0.0
     severity: str = "normal"            # normal | suspect | attack
     triggered_algorithms: list[str] = field(default_factory=list)
@@ -101,6 +104,17 @@ def score_query_type(query_types: dict, any_threshold: float) -> float:
     return min(100.0, (rate / any_threshold) * 100.0)
 
 
+def score_discard_rate(discard_rate: float, threshold: float) -> float:
+    """
+    Taxa de frames descartados (AUTH/RESOLVER sobre total).
+    Alta taxa indica que o BIND está gerando tráfego interno de resolução
+    em resposta ao volume de ataque — amplificação interna.
+    """
+    if discard_rate <= 0 or threshold <= 0:
+        return 0.0
+    return min(100.0, (discard_rate / threshold) * 100.0)
+
+
 def score_domain_entropy(domains: list[str], threshold: float) -> float:
     """
     Entropia de Shannon dos rótulos de subdomínio consultados.
@@ -150,20 +164,38 @@ def detect(inp: DetectionInput, db: Session) -> DetectionResult:
     dom_thr = _get_config(db, "ddos_domain_entropy_threshold", 3.5)
     suspect_thr = _get_config(db, "score_suspect_threshold", 30.0)
     attack_thr = _get_config(db, "score_attack_threshold", 70.0)
+    min_queries_entropy = int(_get_config(db, "min_queries_for_entropy", 20.0))
+    min_qps_entropy = _get_config(db, "min_qps_for_entropy", 100.0)
+
+    discard_thr = _get_config(db, "ddos_discard_rate_threshold", 30.0)
 
     weights = {
         "qps": _get_config(db, "weight_qps", 25.0),
         "nxdomain": _get_config(db, "weight_nxdomain", 25.0),
         "source_entropy": _get_config(db, "weight_source_entropy", 20.0),
-        "query_type": _get_config(db, "weight_query_type", 15.0),
-        "domain_entropy": _get_config(db, "weight_domain_entropy", 15.0),
+        "query_type": _get_config(db, "weight_query_type", 10.0),
+        "domain_entropy": _get_config(db, "weight_domain_entropy", 10.0),
+        "discard_rate": _get_config(db, "weight_discard_rate", 10.0),
     }
 
     s_qps = score_qps(inp.qps, qps_thr)
     s_nxd = score_nxdomain(inp.nxdomain_rate, nxd_thr)
-    s_src = score_source_entropy(inp.top_source_ips)
     s_qtype = score_query_type(inp.query_types, any_thr)
-    s_dom = score_domain_entropy(inp.top_queried_domains, dom_thr)
+    s_discard = score_discard_rate(inp.discard_rate, discard_thr)
+
+    # Entropia só é significativa com amostra suficiente E QPS mínimo.
+    # Sem volume, alta entropia é tráfego recursivo legítimo (muitos IPs/domínios diversos).
+    if inp.query_count >= min_queries_entropy and inp.qps >= min_qps_entropy:
+        s_src = score_source_entropy(inp.top_source_ips)
+        s_dom = score_domain_entropy(inp.top_queried_domains, dom_thr)
+    else:
+        s_src = 0.0
+        s_dom = 0.0
+        if inp.query_count > 0:
+            logger.debug(
+                "ENTROPY_SKIP server_id=%s query_count=%d qps=%.1f min_queries=%d min_qps=%.0f",
+                inp.server_id, inp.query_count, inp.qps, min_queries_entropy, min_qps_entropy,
+            )
 
     scores_map = {
         "qps": s_qps,
@@ -171,6 +203,7 @@ def detect(inp: DetectionInput, db: Session) -> DetectionResult:
         "source_entropy": s_src,
         "query_type": s_qtype,
         "domain_entropy": s_dom,
+        "discard_rate": s_discard,
     }
     comp = composite(scores_map, weights)
     sev = severity_label(comp, suspect_thr, attack_thr)
@@ -183,6 +216,7 @@ def detect(inp: DetectionInput, db: Session) -> DetectionResult:
         score_source_entropy=round(s_src, 2),
         score_query_type=round(s_qtype, 2),
         score_domain_entropy=round(s_dom, 2),
+        score_discard_rate=round(s_discard, 2),
         composite_score=round(comp, 2),
         severity=sev,
         triggered_algorithms=triggered,

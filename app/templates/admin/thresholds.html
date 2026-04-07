@@ -22,7 +22,7 @@
       </div>
       <div class="card-body">
         {% for c in configs %}
-        {% if c.config_key in ['ddos_qps_threshold','ddos_qps_consecutive','ddos_nxdomain_rate_threshold','ddos_any_query_rate_threshold','ddos_domain_entropy_threshold'] %}
+        {% if c.config_key in ['ddos_qps_threshold','ddos_qps_consecutive','ddos_nxdomain_rate_threshold','ddos_any_query_rate_threshold','ddos_domain_entropy_threshold','ddos_discard_rate_threshold'] %}
         <div class="mb-3">
           <label class="form-label d-flex justify-content-between">
             <span>{{ c.description }}</span>

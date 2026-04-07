@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.core.templating import templates  # noqa: F401
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,6 @@ from app.models.attack import AttackEvent, AttackDetail
 from app.models.server import DnsServer
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/attacks", response_class=HTMLResponse)

@@ -11,6 +11,9 @@ networks:
   mondns_net:
     name: mondns_net
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.89.1.0/24
 
 volumes:
   mondns_postgres_data:
@@ -38,13 +41,8 @@ services:
     volumes:
       - mondns_postgres_data:/var/lib/postgresql/data
     networks:
-      - mondns_net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      mondns_net:
+        ipv4_address: 10.89.1.10
     security_opt:
       - no-new-privileges:true
 
@@ -67,13 +65,8 @@ services:
     volumes:
       - mondns_redis_data:/data
     networks:
-      - mondns_net
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
+      mondns_net:
+        ipv4_address: 10.89.1.11
     security_opt:
       - no-new-privileges:true
 
@@ -90,18 +83,16 @@ services:
     container_name: mondns_app
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres
+      - redis
     environment:
       PORT: ${PORT:-8003}
       APP_ENV: ${APP_ENV:-production}
       SECRET_KEY: ${SECRET_KEY}
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@10.89.1.10:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@10.89.1.11:6379/0
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
       APP_VERSION: ${APP_VERSION:-0.1.0}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-RS256}
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
@@ -113,18 +104,14 @@ services:
       BIND_POLL_INTERVAL_SECONDS: ${BIND_POLL_INTERVAL_SECONDS:-5}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
       RATE_LIMIT_AUTH_PER_MINUTE: ${RATE_LIMIT_AUTH_PER_MINUTE:-10}
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-joao.andrade@sonda.com}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
     ports:
       - "127.0.0.1:${PORT:-8003}:${PORT:-8003}"
-    volumes:
-      - /var/log/named:/var/log/named:ro
     networks:
-      - mondns_net
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:${PORT:-8003}/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+      mondns_net:
+        ipv4_address: 10.89.1.12
     security_opt:
       - no-new-privileges:true
     read_only: false

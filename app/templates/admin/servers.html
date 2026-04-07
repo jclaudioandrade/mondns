@@ -9,8 +9,8 @@
 
 <div class="alert alert-dark border border-info-subtle small mb-3">
   <i class="bi bi-key me-2 text-info"></i>
-  A API Key é usada pelo <strong>mondns-agent</strong> instalado em cada servidor slave.
-  Use "Rotacionar Key" se a chave for comprometida.
+  Ao cadastrar um servidor, o painel exibe o comando de instalação completo com a API Key embutida.
+  Execute-o como <strong>root</strong> no servidor DNS correspondente.
 </div>
 
 <div class="card">
@@ -18,7 +18,7 @@
     <table class="table table-sm mb-0">
       <thead>
         <tr><th>Hostname</th><th>IP Interno</th><th>IP Externo</th><th>Role</th>
-            <th>Status</th><th>Último Contato</th><th>API Key</th><th></th></tr>
+            <th>Status</th><th>Agente</th><th>Último Contato</th><th>API Key</th><th></th></tr>
       </thead>
       <tbody>
         {% for s in servers %}
@@ -30,7 +30,14 @@
           <td><span class="badge {% if s.is_active %}bg-success{% else %}bg-danger{% endif %}">
             {% if s.is_active %}ativo{% else %}inativo{% endif %}</span>
           </td>
-          <td><small class="text-secondary">{{ s.last_seen.strftime('%d/%m %H:%M') if s.last_seen else '—' }}</small></td>
+          <td>
+            {% if s.agent_version %}
+              <span class="badge bg-secondary font-monospace" style="font-size:.65rem">v{{ s.agent_version }}</span>
+            {% else %}
+              <span class="text-secondary">—</span>
+            {% endif %}
+          </td>
+          <td><small class="text-secondary">{{ (s.last_seen | as_brt).strftime('%d/%m %H:%M') if s.last_seen else '—' }}</small></td>
           <td>
             {% if s.api_key %}
             <span class="badge bg-success" style="font-size:.65rem"><i class="bi bi-key me-1"></i>Configurada</span>
@@ -62,25 +69,141 @@
   </div>
 </div>
 
-<!-- Modal chave gerada -->
-<div class="modal fade" id="modalKey" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content" style="background:#161b27;border-color:#1e2a3a">
-      <div class="modal-header border-secondary">
-        <h6 class="modal-title text-light"><i class="bi bi-key me-2 text-warning"></i>Nova API Key</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+<!-- ══════════════════════════════════════════════════════════════
+     Modal de Instalação do Agente (exibido após criar/rotacionar)
+     ══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalInstall" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="background:#0d1117;border-color:#30363d">
+      <div class="modal-header" style="border-color:#30363d">
+        <h6 class="modal-title text-light">
+          <i class="bi bi-terminal me-2 text-success"></i>
+          Instalar mondns-agent em <span id="installHostname" class="text-warning"></span>
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                onclick="location.reload()"></button>
       </div>
       <div class="modal-body">
-        <p class="text-secondary small">Copie agora — não será exibida novamente.</p>
-        <div class="input-group">
-          <input type="text" id="newKeyValue" class="form-control form-control-sm" readonly>
-          <button class="btn btn-outline-secondary btn-sm" onclick="copyKey()">
+
+        <!-- Aviso de segurança -->
+        <div class="alert alert-warning py-2 small mb-3">
+          <i class="bi bi-shield-lock me-1"></i>
+          <strong>Guarde esta API Key em local seguro.</strong>
+          Ela não será exibida novamente. Use "Rotacionar Key" se for comprometida.
+        </div>
+
+        <!-- API Key -->
+        <label class="form-label text-secondary small mb-1">API Key gerada</label>
+        <div class="input-group mb-4">
+          <input type="text" id="newKeyValue" class="form-control form-control-sm font-monospace"
+                 readonly style="background:#161b27;color:#58a6ff;border-color:#30363d">
+          <button class="btn btn-outline-secondary btn-sm" onclick="copyText('newKeyValue')" title="Copiar">
             <i class="bi bi-clipboard"></i>
           </button>
         </div>
-        <p class="text-secondary small mt-2">
-          Use no agente: <code>API_KEY=&lt;chave&gt;</code> em <code>/etc/mondns-agent/.env</code>
-        </p>
+
+        <!-- Passo 0: /etc/hosts -->
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-1">
+            <span class="badge bg-warning text-dark me-2">0</span>
+            <span class="text-light small fw-bold">Adicionar resolução do painel em <code>/etc/hosts</code> (necessário antes do curl)</span>
+          </div>
+          <div class="position-relative">
+            <pre class="p-2 rounded small mb-0" style="background:#161b27;color:#e6edf3;border:1px solid #30363d;overflow-x:auto"
+                 id="cmd_hosts">grep -qF 'mondns.sondaativas.com.br' /etc/hosts || \
+  echo '192.0.2.241     mondns.sondaativas.com.br' >> /etc/hosts</pre>
+            <button class="btn btn-xs btn-outline-secondary position-absolute top-0 end-0 m-1 py-0 px-1"
+                    onclick="copyPre('cmd_hosts')" style="font-size:.7rem"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <div class="text-secondary" style="font-size:.75rem;margin-top:.3rem">
+            <i class="bi bi-info-circle me-1"></i>
+            O servidor DNS pode não ter resolução externa. Esta entrada garante que o <code>curl</code> do passo 2 encontre o painel.
+          </div>
+        </div>
+
+        <!-- Passo 1: Criar usuário -->
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-1">
+            <span class="badge bg-primary me-2">1</span>
+            <span class="text-light small fw-bold">Criar usuário no servidor DNS (como root)</span>
+          </div>
+          <div class="position-relative">
+            <pre class="p-2 rounded small mb-0" style="background:#161b27;color:#e6edf3;border:1px solid #30363d;overflow-x:auto"
+                 id="cmd_user">useradd --system --no-create-home --shell /sbin/nologin mondns-agent
+usermod -aG named mondns-agent</pre>
+            <button class="btn btn-xs btn-outline-secondary position-absolute top-0 end-0 m-1 py-0 px-1"
+                    onclick="copyPre('cmd_user')" style="font-size:.7rem"><i class="bi bi-clipboard"></i></button>
+          </div>
+        </div>
+
+        <!-- Passo 2: One-liner de instalação -->
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-1">
+            <span class="badge bg-primary me-2">2</span>
+            <span class="text-light small fw-bold">Executar instalador (como root) — um único comando</span>
+          </div>
+          <div class="position-relative">
+            <pre class="p-2 rounded small mb-0" style="background:#161b27;color:#e6edf3;border:1px solid #30363d;overflow-x:auto"
+                 id="cmd_install"></pre>
+            <button class="btn btn-xs btn-outline-secondary position-absolute top-0 end-0 m-1 py-0 px-1"
+                    onclick="copyPre('cmd_install')" style="font-size:.7rem"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <div class="text-secondary" style="font-size:.75rem;margin-top:.3rem">
+            <i class="bi bi-info-circle me-1"></i>
+            Baixa e executa o instalador. Cria o serviço systemd e configura a API Key automaticamente.
+          </div>
+        </div>
+
+        <!-- Passo 3: named.conf -->
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-1">
+            <span class="badge bg-primary me-2">3</span>
+            <span class="text-light small fw-bold">Adicionar DENTRO do bloco <code>options {}</code> em <code>/etc/named.conf</code></span>
+          </div>
+          <div class="position-relative">
+            <pre class="p-2 rounded small mb-0" style="background:#161b27;color:#e6edf3;border:1px solid #30363d"
+                 id="cmd_named">        dnstap { all; };
+        dnstap-output unix "/var/run/named/dnstap.sock";</pre>
+            <button class="btn btn-xs btn-outline-secondary position-absolute top-0 end-0 m-1 py-0 px-1"
+                    onclick="copyPre('cmd_named')" style="font-size:.7rem"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <div class="text-secondary" style="font-size:.75rem;margin-top:.3rem">
+            <i class="bi bi-info-circle me-1"></i>
+            BIND 9.11: use <code>all</code> para capturar queries autoritativas (AUTH_QUERY) e recursivas (CLIENT_QUERY). Com <code>client</code> queries não-recursivas de resolvers externos são ignoradas.
+          </div>
+        </div>
+
+        <!-- Passo 4: verificar + reiniciar named -->
+        <div class="mb-0">
+          <div class="d-flex align-items-center mb-1">
+            <span class="badge bg-primary me-2">4</span>
+            <span class="text-light small fw-bold">Verificar sintaxe e reiniciar o BIND</span>
+          </div>
+          <div class="position-relative">
+            <pre class="p-2 rounded small mb-0" style="background:#161b27;color:#e6edf3;border:1px solid #30363d"
+                 id="cmd_start">named-checkconf /etc/named.conf && systemctl restart named
+journalctl -u mondns-agent -f</pre>
+            <button class="btn btn-xs btn-outline-secondary position-absolute top-0 end-0 m-1 py-0 px-1"
+                    onclick="copyPre('cmd_start')" style="font-size:.7rem"><i class="bi bi-clipboard"></i></button>
+          </div>
+          <div class="text-secondary" style="font-size:.75rem;margin-top:.3rem">
+            <i class="bi bi-info-circle me-1"></i>
+            O instalador já inicia o agente. O named conecta ao socket do agente ao reiniciar.
+            Aguarde a mensagem <strong>Handshake FSTRM concluído</strong> no log.
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="border-color:#30363d">
+        <span class="text-secondary small me-auto">
+          <i class="bi bi-person-fill-gear me-1"></i>
+          Usuário de instalação: <strong>root</strong> &nbsp;|&nbsp;
+          Usuário do serviço: <strong>mondns-agent</strong> (sem shell, membro do grupo <strong>named</strong>)
+        </span>
+        <button type="button" class="btn btn-success btn-sm" data-bs-dismiss="modal"
+                onclick="location.reload()">
+          <i class="bi bi-check-lg me-1"></i>Concluído
+        </button>
       </div>
     </div>
   </div>
@@ -112,7 +235,7 @@
       </div>
       <div class="modal-footer border-secondary">
         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary btn-sm" onclick="createServer()">Criar</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="createServer()">Criar e Gerar Key</button>
       </div>
     </div>
   </div>
@@ -146,42 +269,56 @@
 
 {% block extra_js %}
 <script>
+const API_BASE = window.location.origin;
+
+function showInstallModal(hostname, apiKey) {
+  document.getElementById('installHostname').textContent = hostname;
+  document.getElementById('newKeyValue').value = apiKey;
+  document.getElementById('cmd_install').textContent =
+    `curl -fsSL ${API_BASE}/api/v1/agent/install.sh | MONDNS_API_TOKEN=${apiKey} bash`;
+  new bootstrap.Modal(document.getElementById('modalInstall')).show();
+}
+
 async function createServer() {
   const body = {
-    hostname: document.getElementById('c_hostname').value,
+    hostname:    document.getElementById('c_hostname').value,
     ip_internal: document.getElementById('c_ip_internal').value || null,
     ip_external: document.getElementById('c_ip_external').value || null,
-    role: document.getElementById('c_role').value,
+    role:        document.getElementById('c_role').value,
     description: document.getElementById('c_desc').value || null,
   };
   const r = await fetch('/api/v1/servers', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
   });
   if (r.ok || r.status === 201) {
     const d = await r.json();
     bootstrap.Modal.getInstance(document.getElementById('modalCreate'))?.hide();
-    document.getElementById('newKeyValue').value = d.api_key;
-    new bootstrap.Modal(document.getElementById('modalKey')).show();
-    setTimeout(() => location.reload(), 5000);
+    showInstallModal(body.hostname, d.api_key);
   } else {
     const d = await r.json();
-    showToast(d.detail || 'Erro.', 'error');
+    showToast(d.detail || 'Erro ao criar servidor.', 'error');
   }
 }
 
 async function rotateKey(id, hostname) {
-  if (!confirm(`Rotacionar API Key de "${hostname}"? O agente precisará ser atualizado.`)) return;
-  const r = await fetch(`/api/v1/servers/${id}/rotate-key`, {method:'POST'});
+  if (!confirm(`Rotacionar API Key de "${hostname}"?\nO agente precisará ser reinstalado com a nova key.`)) return;
+  const r = await fetch(`/api/v1/servers/${id}/rotate-key`, {method: 'POST'});
   if (r.ok) {
     const d = await r.json();
-    document.getElementById('newKeyValue').value = d.api_key;
-    new bootstrap.Modal(document.getElementById('modalKey')).show();
+    showInstallModal(hostname, d.api_key);
+  } else {
+    showToast('Erro ao rotacionar key.', 'error');
   }
 }
 
-function copyKey() {
-  const inp = document.getElementById('newKeyValue');
-  navigator.clipboard.writeText(inp.value).then(() => showToast('Copiado!'));
+function copyText(id) {
+  const val = document.getElementById(id).value;
+  navigator.clipboard.writeText(val).then(() => showToast('Copiado!'));
+}
+
+function copyPre(id) {
+  const val = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(val.trim()).then(() => showToast('Copiado!'));
 }
 
 function editServer(id, hostname, ip_int, ip_ext) {
@@ -195,12 +332,12 @@ function editServer(id, hostname, ip_int, ip_ext) {
 async function saveServer() {
   const id = document.getElementById('e_id').value;
   const body = {
-    hostname: document.getElementById('e_hostname').value,
+    hostname:    document.getElementById('e_hostname').value,
     ip_internal: document.getElementById('e_ip_internal').value || null,
     ip_external: document.getElementById('e_ip_external').value || null,
   };
   const r = await fetch(`/api/v1/servers/${id}`, {
-    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
   });
   if (r.ok) { showToast('Servidor atualizado.'); setTimeout(() => location.reload(), 1000); }
   else showToast('Erro.', 'error');
@@ -208,7 +345,7 @@ async function saveServer() {
 
 async function deleteServer(id, hostname) {
   if (!confirm(`Confirma exclusão de "${hostname}"?`)) return;
-  const r = await fetch(`/api/v1/servers/${id}`, {method:'DELETE'});
+  const r = await fetch(`/api/v1/servers/${id}`, {method: 'DELETE'});
   if (r.ok || r.status === 204) {
     document.getElementById(`srv-${id}`)?.remove();
     showToast('Servidor removido.');

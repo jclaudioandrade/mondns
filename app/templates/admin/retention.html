@@ -27,9 +27,9 @@
           <td class="text-secondary">{{ a.id }}</td>
           <td>{{ item.hostname }}</td>
           <td><span class="badge {{ sev_class.get(a.severity,'bg-secondary') }}">{{ a.severity }}</span></td>
-          <td><small class="text-secondary">{{ a.started_at.strftime('%d/%m/%Y %H:%M') }}</small></td>
+          <td><small class="text-secondary">{{ (a.started_at | as_brt).strftime('%d/%m/%Y %H:%M') }}</small></td>
           <td><small class="text-secondary">
-            {% if a.ended_at %}{{ a.ended_at.strftime('%d/%m/%Y %H:%M') }}
+            {% if a.ended_at %}{{ (a.ended_at | as_brt).strftime('%d/%m/%Y %H:%M') }}
             {% else %}<span class="text-danger">Em andamento</span>{% endif %}
           </small></td>
           <td><span class="{% if a.composite_score >= 70 %}text-danger{% else %}text-warning{% endif %} fw-bold">

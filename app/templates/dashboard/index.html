@@ -2,15 +2,11 @@
 
 {% block content %}
 <!-- ── Server Status Cards ──────────────────────────────────── -->
-<div id="server-cards"
-     hx-get="/api/v1/dashboard/summary"
-     hx-trigger="load, every 10s"
-     hx-target="#server-status-inner"
-     hx-indicator="#loading-indicator">
+<div id="server-cards">
 
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h5 class="mb-0 text-light"><i class="bi bi-hdd-network me-2 text-primary"></i>Status dos Servidores DNS</h5>
-    <span id="loading-indicator" class="htmx-indicator spinner-border spinner-border-sm text-secondary"></span>
+    <span id="loading-indicator" class="spinner-border spinner-border-sm text-secondary d-none"></span>
   </div>
 
   <div id="server-status-inner" class="row g-3 mb-4">
@@ -24,6 +20,16 @@
           <span class="badge bg-secondary ms-auto" style="font-size:.65rem">{{ srv.role }}</span>
         </div>
         <div class="text-secondary small">{{ srv.ip_external or srv.ip_internal or '—' }}</div>
+        <div class="mt-1 d-flex align-items-center gap-2">
+          <small class="text-secondary">Agente</small>
+          <small id="agentver-{{ srv.id }}" class="text-secondary" style="font-size:.7rem">—</small>
+          <button id="update-btn-{{ srv.id }}"
+                  class="btn btn-warning btn-sm py-0 px-2 ms-auto"
+                  style="font-size:.65rem;display:none"
+                  onclick="triggerUpdate({{ srv.id }}, this)">
+            <i class="bi bi-arrow-repeat me-1"></i>Atualizar
+          </button>
+        </div>
         <div class="mt-2 d-flex justify-content-between">
           <small class="text-secondary">QPS</small>
           <small id="qps-{{ srv.id }}" class="text-light fw-bold">—</small>
@@ -63,13 +69,37 @@
 <div class="row g-3 mb-4">
   <div class="col-12">
     <div class="card">
-      <div class="card-header d-flex align-items-center justify-content-between py-2 px-3">
-        <span class="small fw-semibold"><i class="bi bi-graph-up me-2 text-primary"></i>Queries por Segundo — Última Hora</span>
-        <div class="d-flex gap-2">
+      <div class="card-header d-flex align-items-center justify-content-between py-2 px-3 flex-wrap gap-2">
+        <span class="small fw-semibold"><i class="bi bi-graph-up me-2 text-primary"></i>Queries por Segundo</span>
+        <div class="d-flex flex-wrap gap-1 align-items-center">
+          <!-- Séries -->
+          <button class="btn btn-sm series-toggle active" data-series="qps"   style="font-size:.7rem;padding:1px 8px;border:1px solid #60a5fa;color:#60a5fa;background:transparent">QPS</button>
+          <button class="btn btn-sm series-toggle"        data-series="score" style="font-size:.7rem;padding:1px 8px;border:1px solid #fbbf24;color:#fbbf24;background:transparent;opacity:.4">Score</button>
+          <button class="btn btn-sm series-toggle"        data-series="nxd"   style="font-size:.7rem;padding:1px 8px;border:1px solid #a78bfa;color:#a78bfa;background:transparent;opacity:.4">NXDOMAIN%</button>
+          <button class="btn btn-sm series-toggle"        data-series="sqps"  style="font-size:.7rem;padding:1px 8px;border:1px solid #34d399;color:#34d399;background:transparent;opacity:.4">QPS Score</button>
+          <button class="btn btn-sm series-toggle"        data-series="snxd"  style="font-size:.7rem;padding:1px 8px;border:1px solid #f472b6;color:#f472b6;background:transparent;opacity:.4">NX Score</button>
+          <button class="btn btn-sm series-toggle"        data-series="ssrc"  style="font-size:.7rem;padding:1px 8px;border:1px solid #fb923c;color:#fb923c;background:transparent;opacity:.4">Entropia Src</button>
+          <button class="btn btn-sm series-toggle"        data-series="sqt"   style="font-size:.7rem;padding:1px 8px;border:1px solid #38bdf8;color:#38bdf8;background:transparent;opacity:.4">Tipo Query</button>
+          <button class="btn btn-sm series-toggle"        data-series="sdom"  style="font-size:.7rem;padding:1px 8px;border:1px solid #e879f9;color:#e879f9;background:transparent;opacity:.4">Entropia Dom</button>
+          <button class="btn btn-sm series-toggle"        data-series="sdsc"  style="font-size:.7rem;padding:1px 8px;border:1px solid #f43f5e;color:#f43f5e;background:transparent;opacity:.4">Descartados</button>
+          <span class="text-secondary" style="font-size:.75rem">|</span>
+          <!-- Período -->
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary period-btn active" data-minutes="60">1h</button>
+            <button type="button" class="btn btn-outline-secondary period-btn" data-minutes="360">6h</button>
+            <button type="button" class="btn btn-outline-secondary period-btn" data-minutes="1440">24h</button>
+            <button type="button" class="btn btn-outline-secondary period-btn" data-minutes="4320">3d</button>
+          </div>
+          <span class="text-secondary" style="font-size:.75rem">|</span>
+          <!-- Servidores -->
+          {% set srv_colors = ['#60a5fa','#34d399','#f59e0b','#f87171','#a78bfa','#fb923c'] %}
           {% for srv in servers %}
-          <span class="badge" style="background:#1e3a5f;color:#93c5fd;cursor:pointer"
-                onclick="toggleServer({{ srv.id }})" id="btn-{{ srv.id }}">
-            {{ srv.hostname.split('.')[0] }}
+          {% set c = srv_colors[loop.index0 % srv_colors|length] %}
+          <span class="badge srv-toggle-btn" id="btn-{{ srv.id }}"
+                style="background:{{ c }}22;color:{{ c }};border:1px solid {{ c }};cursor:pointer;font-size:.7rem"
+                data-color="{{ c }}" data-active="1"
+                onclick="toggleServer({{ srv.id }}, this)">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ c }};margin-right:4px;vertical-align:middle"></span>{{ srv.hostname.split('.')[0] }}
           </span>
           {% endfor %}
         </div>
@@ -92,7 +122,7 @@
       <thead>
         <tr>
           <th>Servidor</th><th>Severidade</th><th>Score</th>
-          <th>Pico QPS</th><th>Início</th><th>Status</th><th></th>
+          <th>Pico QPS</th><th>Início</th><th>Duração</th><th>Status</th><th></th>
         </tr>
       </thead>
       <tbody id="recent-attacks-body">
@@ -106,67 +136,228 @@
 {% block extra_js %}
 <script>
 const SERVER_IDS = [{% for srv in servers %}{{ srv.id }},{% endfor %}];
+const SERVER_NAMES = { {% for srv in servers %}{{ srv.id }}: '{{ srv.hostname.split('.')[0] }}',{% endfor %} };
 const COLORS = ['#60a5fa','#34d399','#f59e0b','#f87171','#a78bfa','#fb923c'];
 const chartDatasets = {};
+const serverActive = {};
 let qpsChart;
+let chartMinutes = 60;
+
+// Séries visíveis por padrão
+const seriesVisible = {
+  qps: true, score: false, nxd: false,
+  sqps: false, snxd: false, ssrc: false, sqt: false, sdom: false, sdsc: false
+};
+
+const SERIES_KEY_MAP = {
+  qps:'qps', score:'score', nxdomain_rate:'nxd',
+  score_qps:'sqps', score_nxdomain:'snxd',
+  score_source_entropy:'ssrc', score_query_type:'sqt',
+  score_domain_entropy:'sdom', score_discard_rate:'sdsc'
+};
+
+let suspectThreshold = 30;
+let attackThreshold  = 70;
+let chartAttacks = [];  // [{started_label, ended_label, severity, status}]
+
+// Plugin inline: desenha faixas verticais nos períodos de ataque
+const attackBandsPlugin = {
+  id: 'attackBands',
+  afterDraw(chart) {
+    if (!chartAttacks.length) return;
+    const { ctx, chartArea: { left, right, top, bottom }, scales: { x } } = chart;
+    if (!x) return;
+    const labels = chart.data.labels;
+
+    chartAttacks.forEach(ev => {
+      const si = labels.indexOf(ev.started_label);
+      const ei = ev.ended_label ? labels.indexOf(ev.ended_label) : labels.length - 1;
+      if (si === -1) return;
+
+      const x1 = x.getPixelForValue(si);
+      const x2 = x.getPixelForValue(ei === -1 ? labels.length - 1 : ei);
+      const color = ev.severity === 'critical' ? '#ff000033'
+                  : ev.severity === 'high'     ? '#f8717133'
+                  : ev.severity === 'medium'   ? '#fbbf2433'
+                  : '#fbbf2422';
+
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.fillRect(x1, top, Math.max(x2 - x1, 2), bottom - top);
+
+      // Linha vertical no início
+      ctx.strokeStyle = ev.severity === 'critical' ? '#ff0000cc'
+                      : ev.severity === 'high'     ? '#f87171cc'
+                      : '#fbbf24cc';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x1, top);
+      ctx.lineTo(x1, bottom);
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+};
+
+const SERIES_CFG = [
+  { key: 'qps',                  label: 'QPS',          color: null,      yAxis: 'y',  fill: true,  dash: [],    width: 2 },
+  { key: 'score',                label: 'Score',        color: '#fbbf24', yAxis: 'y2', fill: false, dash: [4,4], width: 1 },
+  { key: 'nxdomain_rate',        label: 'NXDOMAIN%',   color: '#a78bfa', yAxis: 'y2', fill: false, dash: [],    width: 1 },
+  { key: 'score_qps',            label: 'QPS Score',   color: '#34d399', yAxis: 'y2', fill: false, dash: [2,3], width: 1 },
+  { key: 'score_nxdomain',       label: 'NX Score',    color: '#f472b6', yAxis: 'y2', fill: false, dash: [2,3], width: 1 },
+  { key: 'score_source_entropy', label: 'Entropia Src',color: '#fb923c', yAxis: 'y2', fill: false, dash: [2,3], width: 1 },
+  { key: 'score_query_type',     label: 'Tipo Query',  color: '#38bdf8', yAxis: 'y2', fill: false, dash: [2,3], width: 1 },
+  { key: 'score_domain_entropy', label: 'Entropia Dom',  color: '#e879f9', yAxis: 'y2', fill: false, dash: [2,3], width: 1 },
+  { key: 'score_discard_rate',  label: 'Descartados',   color: '#f43f5e', yAxis: 'y2', fill: false, dash: [2,3], width: 1 },
+];
 
 // Inicializar Chart.js
 (function initChart() {
   const ctx = document.getElementById('qpsChart').getContext('2d');
   qpsChart = new Chart(ctx, {
     type: 'line',
+    plugins: [attackBandsPlugin],
     data: { labels: [], datasets: [] },
     options: {
       responsive: true, maintainAspectRatio: false,
       animation: { duration: 300 },
       plugins: {
         legend: { display: false },
-        tooltip: { mode: 'index', intersect: false,
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} qps` }
+        tooltip: {
+          mode: 'index', intersect: false,
+          filter: item => !item.dataset.hidden,
         },
       },
       scales: {
-        x: { ticks: { color: '#475569', maxTicksLimit: 10 },
-             grid: { color: '#1e2a3a' } },
-        y: { ticks: { color: '#475569' }, grid: { color: '#1e2a3a' },
-             beginAtZero: true },
+        x:  { ticks: { color: '#475569', maxTicksLimit: 10 }, grid: { color: '#1e2a3a' } },
+        y:  { position: 'left',  ticks: { color: '#60a5fa' }, grid: { color: '#1e2a3a' }, beginAtZero: true },
+        y2: { position: 'right', ticks: { color: '#fbbf24' }, grid: { display: false }, min: 0, max: 100, display: false },
       },
     },
   });
 
   SERVER_IDS.forEach((id, i) => {
-    chartDatasets[id] = {
-      label: 'srv' + id, data: [], fill: false,
-      borderColor: COLORS[i % COLORS.length],
-      backgroundColor: COLORS[i % COLORS.length] + '22',
-      borderWidth: 2, pointRadius: 0, tension: 0.3,
-    };
+    serverActive[id] = true;
+    const srvColor = COLORS[i % COLORS.length];
+    chartDatasets[id] = {};
+    SERIES_CFG.forEach(cfg => {
+      const c = cfg.color || srvColor;
+      chartDatasets[id][cfg.key] = {
+        label: `${SERVER_NAMES[id]} – ${cfg.label}`,
+        data: [], fill: cfg.fill,
+        borderColor: c, backgroundColor: c + '22',
+        borderWidth: cfg.width, borderDash: cfg.dash,
+        pointRadius: 0, tension: 0.3, spanGaps: false,
+        yAxisID: cfg.yAxis,
+      };
+    });
+  });
+
+  // Toggles de série
+  document.querySelectorAll('.series-toggle').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const sk = this.dataset.series;
+      seriesVisible[sk] = !seriesVisible[sk];
+      this.style.opacity = seriesVisible[sk] ? '1' : '.4';
+      this.classList.toggle('active', seriesVisible[sk]);
+      rebuildDatasets();
+      qpsChart.update('none');
+    });
+  });
+
+  // Toggles de período
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      chartMinutes = parseInt(this.dataset.minutes);
+      qpsChart.data.labels = [];
+      loadChartData();
+    });
   });
 
   loadChartData();
   setInterval(loadChartData, 10000);
 })();
 
-async function loadChartData() {
-  for (const id of SERVER_IDS) {
-    try {
-      const r = await fetch(`/api/v1/dashboard/metrics/${id}?minutes=60`);
-      const d = await r.json();
-      chartDatasets[id].label = 'srv' + id;
-      chartDatasets[id].data = d.qps;
-      if (qpsChart.data.labels.length === 0) {
-        qpsChart.data.labels = d.labels;
-      }
-    } catch(e) {}
+function makeThresholdLine(value, color, label) {
+  const n = qpsChart.data.labels.length || 2;
+  return {
+    label,
+    data: Array(n).fill(value),
+    borderColor: color,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderDash: [6, 3],
+    pointRadius: 0,
+    tension: 0,
+    spanGaps: true,
+    yAxisID: 'y2',
+    hidden: false,
+    _isThreshold: true,
+  };
+}
+
+function rebuildDatasets() {
+  const all = [];
+  SERVER_IDS.forEach(id => {
+    SERIES_CFG.forEach(cfg => {
+      if (!chartDatasets[id]?.[cfg.key]) return;
+      const ds = chartDatasets[id][cfg.key];
+      ds.hidden = !serverActive[id] || !seriesVisible[SERIES_KEY_MAP[cfg.key]];
+      all.push(ds);
+    });
+  });
+  if (seriesVisible.score) {
+    all.push(makeThresholdLine(suspectThreshold, '#fbbf2488', `Suspeito (${suspectThreshold})`));
+    all.push(makeThresholdLine(attackThreshold,  '#f8717188', `Ataque (${attackThreshold})`));
   }
-  qpsChart.data.datasets = Object.values(chartDatasets).filter(ds => ds.visible !== false);
+  const anyRight = SERIES_CFG.filter(c => c.yAxis === 'y2')
+    .some(c => seriesVisible[SERIES_KEY_MAP[c.key]]);
+  qpsChart.options.scales.y2.display = anyRight;
+  qpsChart.data.datasets = all;
+}
+
+async function loadChartData() {
+  try {
+    const r = await fetch(`/api/v1/dashboard/metrics/all?minutes=${chartMinutes}`);
+    const d = await r.json();
+    qpsChart.data.labels = d.labels;
+    if (d.suspect_threshold) suspectThreshold = d.suspect_threshold;
+    if (d.attack_threshold)  attackThreshold  = d.attack_threshold;
+    SERVER_IDS.forEach(id => {
+      const sd = d.servers?.[String(id)];
+      if (!sd) return;
+      if (sd.attacks) chartAttacks = sd.attacks;
+      SERIES_CFG.forEach(cfg => {
+        if (chartDatasets[id]?.[cfg.key]) chartDatasets[id][cfg.key].data = sd[cfg.key] || [];
+      });
+    });
+  } catch(e) {}
+  rebuildDatasets();
   qpsChart.update('none');
 }
 
-function toggleServer(id) {
-  const ds = chartDatasets[id];
-  ds.visible = ds.visible !== false ? false : true;
-  loadChartData();
+function toggleServer(id, btn) {
+  const active = btn.dataset.active === '1';
+  serverActive[id] = !active;
+  const c = btn.dataset.color;
+  if (active) {
+    btn.style.background = 'transparent';
+    btn.style.color = '#475569';
+    btn.style.borderColor = '#475569';
+    btn.style.opacity = '.4';
+    btn.dataset.active = '0';
+  } else {
+    btn.style.background = c + '22';
+    btn.style.color = c;
+    btn.style.borderColor = c;
+    btn.style.opacity = '1';
+    btn.dataset.active = '1';
+  }
+  rebuildDatasets();
+  qpsChart.update('none');
 }
 
 // Atualizar cards e stats a partir do summary
@@ -177,18 +368,24 @@ async function loadSummary() {
 
     let online = 0;
     d.servers.forEach(srv => {
-      const dot = document.getElementById('dot-' + srv.id);
-      const qpsEl = document.getElementById('qps-' + srv.id);
+      const dot    = document.getElementById('dot-' + srv.id);
+      const qpsEl  = document.getElementById('qps-' + srv.id);
       const fillEl = document.getElementById('score-fill-' + srv.id);
-      const score = srv.current_score || 0;
+      const verEl  = document.getElementById('agentver-' + srv.id);
+      const updBtn = document.getElementById('update-btn-' + srv.id);
+      const score  = srv.current_score || 0;
 
       if (dot) {
         dot.className = 'dot ' + (srv.attack_active ? 'dot-attack' : srv.online ? 'dot-online' : 'dot-offline');
       }
-      if (qpsEl) qpsEl.textContent = (srv.current_qps || 0).toFixed(0);
+      if (qpsEl)  qpsEl.textContent = (srv.current_qps || 0).toFixed(0);
       if (fillEl) {
         fillEl.style.width = Math.min(100, score) + '%';
         fillEl.className = 'score-fill bg-' + (score >= 70 ? 'danger' : score >= 30 ? 'warning' : 'success');
+      }
+      if (verEl) verEl.textContent = srv.agent_version || '—';
+      if (updBtn && !updBtn.dataset.pending) {
+        updBtn.style.display = srv.update_available ? 'inline-block' : 'none';
       }
       if (srv.online) online++;
     });
@@ -207,27 +404,63 @@ async function loadRecentAttacks() {
     const tbody = document.getElementById('recent-attacks-body');
 
     if (!attacks.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">Nenhum ataque registrado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-secondary py-3">Nenhum ataque registrado.</td></tr>';
       return;
+    }
+
+    function fmtDuration(startedAt, endedAt, status) {
+      if (status === 'active') return '<span class="text-danger small">Em andamento</span>';
+      if (!endedAt || !startedAt) return '<small class="text-secondary">—</small>';
+      // Ambos no formato "dd/mm/yyyy HH:MM:SS"
+      const parse = s => { const [d,t] = s.split(' '); const [dd,mm,yyyy]=d.split('/'); return new Date(`${yyyy}-${mm}-${dd}T${t}`); };
+      const delta = Math.round((parse(endedAt) - parse(startedAt)) / 1000);
+      if (delta < 0) return '<small class="text-secondary">—</small>';
+      if (delta >= 3600) return `<small class="text-secondary">${Math.floor(delta/3600)}h ${Math.floor((delta%3600)/60)}m</small>`;
+      if (delta >= 60)   return `<small class="text-secondary">${Math.floor(delta/60)}m ${delta%60}s</small>`;
+      return `<small class="text-secondary">${delta}s</small>`;
     }
 
     tbody.innerHTML = attacks.map(a => {
       const sev = a.severity || 'unknown';
       const sevMap = {low:'badge-low',medium:'badge-medium',high:'badge-high',critical:'badge-critical',suspect:'badge-suspect'};
       const statMap = {active:'badge-active',resolved:'badge-resolved'};
-      const dt = new Date(a.started_at).toLocaleString('pt-BR');
+      const dt = a.started_at || '—';
       return `<tr>
         <td><small class="text-light">${a.hostname}</small></td>
         <td><span class="badge ${sevMap[sev]||'bg-secondary'}">${sev}</span></td>
         <td><span class="text-${a.score>=70?'danger':a.score>=30?'warning':'success'} fw-bold">${(a.score||0).toFixed(1)}</span></td>
         <td>${(a.peak_qps||0).toFixed(0)}</td>
         <td><small class="text-secondary">${dt}</small></td>
+        <td>${fmtDuration(a.started_at, a.ended_at, a.status)}</td>
         <td><span class="badge ${statMap[a.status]||'bg-secondary'}">${a.status}</span></td>
         <td><a href="/attacks/${a.id}" class="btn btn-sm btn-outline-secondary py-0 px-2">
           <i class="bi bi-eye"></i></a></td>
       </tr>`;
     }).join('');
   } catch(e) {}
+}
+
+async function triggerUpdate(serverId, btn) {
+  btn.disabled = true;
+  btn.dataset.pending = '1';
+  btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Aguardando...';
+  try {
+    const r = await fetch(`/api/v1/agent/trigger-update/${serverId}`, { method: 'POST' });
+    if (r.ok) {
+      btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Solicitado';
+      btn.className = btn.className.replace('btn-warning', 'btn-success');
+      showToast('Atualização solicitada. O agente atualizará na próxima janela (~10s).');
+    } else {
+      btn.innerHTML = '<i class="bi bi-x me-1"></i>Erro';
+      btn.className = btn.className.replace('btn-warning', 'btn-danger');
+      showToast('Erro ao solicitar atualização.', 'error');
+    }
+  } catch(e) {
+    btn.disabled = false;
+    delete btn.dataset.pending;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Atualizar';
+    showToast('Erro de conexão.', 'error');
+  }
 }
 
 loadSummary();

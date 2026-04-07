@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.core.templating import templates  # noqa: F401
 
 from app.core.security import get_current_user_from_request
 from app.config import settings
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 TECHNOLOGIES = [
     {"name": "Python 3.12", "desc": "Linguagem principal do backend"},
@@ -29,7 +28,7 @@ CHANGELOG = [
     {
         "version": "0.2.0",
         "date": "2026-03-13",
-        "items": [
+        "changes": [
             "Backend completo: modelos, migrations, autenticação por sessão",
             "Motor de detecção DDoS com 5 algoritmos independentes (QPS, NXDOMAIN, entropia de fontes, tipo de query, entropia de domínio)",
             "Score composto ponderado com thresholds configuráveis",
@@ -48,7 +47,7 @@ CHANGELOG = [
     {
         "version": "0.1.0",
         "date": "2026-03-13",
-        "items": [
+        "changes": [
             "Scaffold inicial: CLAUDE.md, .gitignore, .env.example",
             "podman-compose.yml com PostgreSQL 15 (5433), Redis 7 (6380), app (8003)",
             "Dockerfile multi-stage com usuário não-root (appuser UID 1001)",

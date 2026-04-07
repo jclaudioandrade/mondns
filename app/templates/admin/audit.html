@@ -14,7 +14,7 @@
       <tbody>
         {% for log in logs %}
         <tr>
-          <td><small class="text-secondary">{{ log.created_at.strftime('%d/%m/%Y %H:%M:%S') }}</small></td>
+          <td><small class="text-secondary">{{ (log.created_at | as_brt).strftime('%d/%m/%Y %H:%M:%S') }}</small></td>
           <td><code class="text-info">{{ log.username }}</code></td>
           <td>
             <span class="badge {% if 'delete' in log.action or 'failed' in log.action %}bg-danger

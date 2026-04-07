@@ -1,0 +1,32 @@
+// ============================================================
+// Adicionar DENTRO do bloco options {} em /etc/named.conf
+// BIND 9.11 — ambas as diretivas ficam dentro de options {}
+//
+// Exemplo de posição correta:
+//
+//   options {
+//       ...
+//       empty-zones-enable no;
+//
+//       dnstap { client; };
+//       dnstap-output unix "/var/run/named/dnstap.sock";
+//
+//       recursion yes;
+//       ...
+//   };
+//
+// IMPORTANTE:
+//   - "client;" captura queries e responses dos clientes (BIND 9.11)
+//   - NÃO usar "client-query; client-response;" (sintaxe BIND 9.16+)
+//   - dnstap-output NÃO é diretiva top-level no BIND 9.11
+//
+// Verificar sintaxe antes de recarregar:
+//   named-checkconf /etc/named.conf && echo OK
+//
+// O agente deve estar rodando ANTES do named:
+//   systemctl start mondns-agent
+//   systemctl restart named
+// ============================================================
+
+        dnstap { client; };
+        dnstap-output unix "/var/run/named/dnstap.sock";

@@ -29,7 +29,7 @@
               {% if u.is_active %}ativo{% else %}inativo{% endif %}
             </span>
           </td>
-          <td><small class="text-secondary">{{ u.last_login.strftime('%d/%m/%Y %H:%M') if u.last_login else '—' }}</small></td>
+          <td><small class="text-secondary">{{ (u.last_login | as_brt).strftime('%d/%m/%Y %H:%M') if u.last_login else '—' }}</small></td>
           <td>
             <button class="btn btn-sm btn-outline-secondary py-0 px-2 me-1"
                     onclick="editUser({{ u.id }}, '{{ u.username }}', '{{ u.email }}', '{{ u.full_name or '' }}', '{{ u.group_name }}', {{ u.is_active|lower }})">

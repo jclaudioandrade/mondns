@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.core.templating import templates  # noqa: F401
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -12,7 +12,6 @@ from app.core.audit import log_action, get_client_ip
 from app.config import settings
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/login", response_class=HTMLResponse)

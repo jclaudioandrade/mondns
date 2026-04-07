@@ -26,10 +26,51 @@ except Exception as e:
 done
 echo "==> [mondns] PostgreSQL disponível."
 
-# Executar migrations (12-Factor: migration separada do startup)
-echo "==> [mondns] Executando migrations..."
-alembic upgrade head
-echo "==> [mondns] Migrations concluídas."
+# Criar tabelas e dados iniciais (antes do gunicorn subir múltiplos workers)
+echo "==> [mondns] Inicializando banco de dados..."
+python3 -c "
+import logging
+from app.db.base import Base
+from app.db.session import engine, SessionLocal
+import app.models.user, app.models.server, app.models.metric
+import app.models.attack, app.models.config
+from app.config import settings
+from app.core.security import hash_password
+from app.models.user import User
+from app.models.config import SystemConfig, DEFAULT_CONFIGS
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('init_db')
+
+Base.metadata.create_all(bind=engine)
+log.info('Tabelas OK.')
+
+# Migrações incrementais — ADD COLUMN IF NOT EXISTS é idempotente no PostgreSQL 9.6+
+from sqlalchemy import text
+with engine.connect() as conn:
+    conn.execute(text('ALTER TABLE dns_metrics ADD COLUMN IF NOT EXISTS frames_discarded INTEGER'))
+    conn.execute(text('ALTER TABLE dns_metrics ADD COLUMN IF NOT EXISTS score_discard_rate FLOAT'))
+    conn.commit()
+log.info('Colunas OK.')
+
+db = SessionLocal()
+try:
+    for cfg in DEFAULT_CONFIGS:
+        if not db.query(SystemConfig).filter(SystemConfig.config_key == cfg['key']).first():
+            db.add(SystemConfig(config_key=cfg['key'], config_value=cfg['value'],
+                                description=cfg['desc'], config_group=cfg['group']))
+    if db.query(User).count() == 0:
+        db.add(User(username=settings.initial_admin_username,
+                    email=settings.initial_admin_email,
+                    full_name='Administrador',
+                    password_hash=hash_password(settings.initial_admin_password),
+                    group_name='admin'))
+        log.info('Admin criado: %s', settings.initial_admin_username)
+    db.commit()
+finally:
+    db.close()
+"
+echo "==> [mondns] Banco inicializado."
 
 # Iniciar aplicação
 echo "==> [mondns] Iniciando aplicação na porta ${PORT:-8002}..."
