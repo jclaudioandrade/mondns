@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.core.deps import require_api_admin
-from app.core.security import hash_password
+from app.core.security import hash_password, generate_temp_password
 from app.core.audit import log_action, get_client_ip
 from app.models.user import User
 
@@ -14,9 +14,23 @@ router = APIRouter(prefix="/users", tags=["users"])
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
-    full_name: str | None = None
-    password: str
+    full_name: str
+    department: str
     group_name: str = "analyst"
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Nome completo é obrigatório.")
+        return v.strip()
+
+    @field_validator("department")
+    @classmethod
+    def validate_department(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Área de atuação é obrigatória.")
+        return v.strip()
 
     @field_validator("group_name")
     @classmethod
@@ -25,17 +39,11 @@ class UserCreate(BaseModel):
             raise ValueError("Grupo deve ser 'admin' ou 'analyst'.")
         return v
 
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Senha deve ter pelo menos 8 caracteres.")
-        return v
-
 
 class UserUpdate(BaseModel):
     email: EmailStr | None = None
     full_name: str | None = None
+    department: str | None = None
     group_name: str | None = None
     is_active: bool | None = None
     password: str | None = None
@@ -63,9 +71,13 @@ def create_user(
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status_code=400, detail="E-mail já cadastrado.")
 
+    temp_password = generate_temp_password()
     new_user = User(
         username=data.username, email=data.email, full_name=data.full_name,
-        password_hash=hash_password(data.password), group_name=data.group_name,
+        department=data.department,
+        password_hash=hash_password(temp_password),
+        group_name=data.group_name,
+        must_change_password=True,
     )
     db.add(new_user)
     db.commit()
@@ -75,7 +87,17 @@ def create_user(
                resource_type="user", resource_id=new_user.id,
                details={"new_username": data.username, "group": data.group_name},
                ip_address=get_client_ip(request))
-    return {"id": new_user.id, "username": new_user.username}
+
+    from app.services.notifications import send_welcome_email
+    sent = send_welcome_email(db, new_user.email, new_user.username,
+                              new_user.full_name or new_user.username, temp_password)
+
+    result: dict = {"id": new_user.id, "username": new_user.username, "email_sent": sent}
+    if not sent:
+        # E-mail não enviado: devolve a senha para o admin comunicar manualmente
+        result["temp_password"] = temp_password
+        result["warning"] = "Falha ao enviar e-mail. Comunique a senha ao usuário manualmente."
+    return result
 
 
 @router.put("/{user_id}")
@@ -93,6 +115,8 @@ def update_user(
         u.email = data.email
     if data.full_name is not None:
         u.full_name = data.full_name
+    if data.department is not None:
+        u.department = data.department
     if data.group_name is not None:
         if data.group_name not in ("admin", "analyst"):
             raise HTTPException(status_code=400, detail="Grupo inválido.")
@@ -124,6 +148,9 @@ def delete_user(
     u = db.query(User).filter(User.id == user_id).first()
     if not u:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    # Anula referências em audit_logs antes de deletar (FK nullable)
+    from app.models.audit import AuditLog
+    db.query(AuditLog).filter(AuditLog.user_id == user_id).update({"user_id": None})
     db.delete(u)
     db.commit()
     log_action(db, "user_deleted", username=admin["username"], user_id=admin["id"],

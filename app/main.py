@@ -137,6 +137,25 @@ app = FastAPI(
 # Static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+# ── Middleware: forçar troca de senha no primeiro acesso ──────
+_SKIP_CHANGE_PWD = {"/login", "/logout", "/forgot-password",
+                    "/reset-password", "/change-password", "/health"}
+
+
+@app.middleware("http")
+async def force_password_change(request: Request, call_next):
+    path = request.url.path
+    if (path.startswith("/api/") or path.startswith("/static/") or
+            path in _SKIP_CHANGE_PWD):
+        return await call_next(request)
+    session_id = request.cookies.get("mondns_session")
+    if session_id:
+        from app.core.security import get_session
+        session = get_session(session_id)
+        if session and session.get("must_change_password"):
+            return RedirectResponse("/change-password", status_code=302)
+    return await call_next(request)
+
 # ── API routes ───────────────────────────────────────────────
 api_prefix = "/api/v1"
 app.include_router(collect.router,   prefix=api_prefix)

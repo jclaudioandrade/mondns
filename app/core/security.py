@@ -12,6 +12,7 @@ from app.config import settings
 
 SESSION_COOKIE = "mondns_session"
 SESSION_PREFIX = "session:"
+SESSION_EXPIRE_SECONDS = settings.session_expire_seconds
 
 
 # ── Senhas ───────────────────────────────────────────────────────────────────
@@ -22,6 +23,29 @@ def hash_password(plain: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     return _bcrypt.checkpw(plain.encode(), hashed.encode())
+
+
+# ── Senha temporária ──────────────────────────────────────────────────────────
+
+def generate_temp_password() -> str:
+    """Gera senha temporária segura de 14 chars com complexidade garantida."""
+    import string
+    lc = string.ascii_lowercase
+    uc = string.ascii_uppercase
+    dg = string.digits
+    sp = "!@#$%-_"
+    # Garante ao menos 1 de cada categoria
+    pwd = [
+        secrets.choice(lc), secrets.choice(uc),
+        secrets.choice(dg), secrets.choice(sp),
+    ]
+    alphabet = lc + uc + dg + sp
+    pwd += [secrets.choice(alphabet) for _ in range(10)]
+    # Embaralha de forma criptograficamente segura
+    for i in range(len(pwd) - 1, 0, -1):
+        j = secrets.randbelow(i + 1)
+        pwd[i], pwd[j] = pwd[j], pwd[i]
+    return "".join(pwd)
 
 
 # ── API Keys ──────────────────────────────────────────────────────────────────
@@ -89,6 +113,36 @@ def get_active_sessions() -> list[dict]:
         except Exception:
             pass
     return result
+
+
+# ── Password Reset Tokens (Redis) ────────────────────────────────────────────
+
+RESET_TOKEN_PREFIX = "pwd_reset:"
+RESET_TOKEN_TTL = 1800  # 30 minutos
+
+
+def create_password_reset_token(user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    r = get_redis()
+    r.setex(f"{RESET_TOKEN_PREFIX}{token}", RESET_TOKEN_TTL, str(user_id))
+    return token
+
+
+def verify_password_reset_token(token: str) -> Optional[int]:
+    """Retorna user_id se token válido, None caso contrário. Não consome o token."""
+    r = get_redis()
+    val = r.get(f"{RESET_TOKEN_PREFIX}{token}")
+    if not val:
+        return None
+    return int(val)
+
+
+def consume_password_reset_token(token: str) -> Optional[int]:
+    """Valida e remove o token. Retorna user_id ou None."""
+    user_id = verify_password_reset_token(token)
+    if user_id is not None:
+        get_redis().delete(f"{RESET_TOKEN_PREFIX}{token}")
+    return user_id
 
 
 # ── Autenticação Web ──────────────────────────────────────────────────────────

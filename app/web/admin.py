@@ -29,7 +29,7 @@ def admin_users(request: Request, db: Session = Depends(get_db)):
     user, redir = _require_admin(request)
     if redir:
         return redir
-    users = db.query(User).filter(User.username != user.get("username")).order_by(User.username).all()
+    users = db.query(User).order_by(User.username).all()
     return templates.TemplateResponse("admin/users.html", {
         "request": request, "user": user, "users": users, "page_title": "Gerenciar Usuários",
     })

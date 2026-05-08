@@ -50,6 +50,8 @@ from sqlalchemy import text
 with engine.connect() as conn:
     conn.execute(text('ALTER TABLE dns_metrics ADD COLUMN IF NOT EXISTS frames_discarded INTEGER'))
     conn.execute(text('ALTER TABLE dns_metrics ADD COLUMN IF NOT EXISTS score_discard_rate FLOAT'))
+    conn.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100)'))
+    conn.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE'))
     conn.commit()
 log.info('Colunas OK.')
 
